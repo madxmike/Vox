@@ -44,6 +44,8 @@ use vulkano::{Handle, Validated, VulkanError, VulkanLibrary, VulkanObject};
 struct MyVertex {
     #[format(R32G32_SFLOAT)]
     position: [f32; 2],
+    #[format(R32G32B32_SFLOAT)]
+    color: [f32; 3],
 }
 
 mod vs {
@@ -132,12 +134,15 @@ fn main() {
     let verticies = vec![
         MyVertex {
             position: [-0.5, 0.5],
+            color: [1.0, 0.0, 0.0],
         },
         MyVertex {
             position: [0.5, 0.5],
+            color: [0.0, 1.0, 0.0],
         },
         MyVertex {
             position: [0.0, -0.5],
+            color: [0.0, 0.0, 1.0],
         },
     ];
 
@@ -415,7 +420,7 @@ fn create_command_buffers(
             builder
                 .begin_render_pass(
                     RenderPassBeginInfo {
-                        clear_values: vec![Some([0.0, 0.0, 1.0, 1.0].into())],
+                        clear_values: vec![Some([0.0, 0.0, 0.0, 1.0].into())],
                         ..RenderPassBeginInfo::framebuffer(frame_buffer.clone())
                     },
                     SubpassBeginInfo {
