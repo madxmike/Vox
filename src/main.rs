@@ -1,6 +1,8 @@
 mod renderer;
 mod shaders;
 mod vulkan_renderer;
+mod mesh;
+mod cube_mesh;
 
 use renderer::Renderer;
 use sdl2::event::Event;

@@ -14,11 +14,17 @@ pub mod fs {
     }
 }
 
-#[derive(BufferContents, Vertex)]
+#[derive(BufferContents, Vertex, Debug)]
 #[repr(C)]
 pub struct DefaultLitVertex {
     #[format(R32G32B32_SFLOAT)]
     pub position: [f32; 3],
     #[format(R32G32B32_SFLOAT)]
     pub normal: [f32; 3],
+}
+
+#[derive(BufferContents)]
+#[repr(C)]
+pub struct DefaultLitIndex {
+    pub index: u32,
 }

@@ -1,10 +1,14 @@
-use std::{f32::consts::FRAC_PI_2, os::raw, sync::Arc};
+use std::{
+    f32::consts::{FRAC_PI_2, PI},
+    os::raw,
+    sync::Arc,
+};
 
 use sdl2::video::Window;
 use vulkano::{
     buffer::{
         allocator::{SubbufferAllocator, SubbufferAllocatorCreateInfo},
-        AllocateBufferError, Buffer, BufferCreateInfo, BufferUsage, Subbuffer,
+        AllocateBufferError, Buffer, BufferCreateInfo, BufferUsage, IndexBuffer, Subbuffer,
     },
     command_buffer::{
         allocator::StandardCommandBufferAllocator, AutoCommandBufferBuilder, CommandBufferUsage,
@@ -18,15 +22,20 @@ use vulkano::{
         physical::{PhysicalDevice, PhysicalDeviceType},
         Device, DeviceCreateInfo, DeviceExtensions, Queue, QueueCreateInfo, QueueFlags,
     },
-    image::{view::ImageView, Image, ImageUsage},
+    format::{self, Format},
+    image::{
+        view::{ImageView, ImageViewCreateInfo},
+        Image, ImageCreateInfo, ImageUsage,
+    },
     instance::{Instance, InstanceCreateInfo, InstanceExtensions},
     memory::allocator::{AllocationCreateInfo, MemoryTypeFilter, StandardMemoryAllocator},
     pipeline::{
         graphics::{
             color_blend::{ColorBlendAttachmentState, ColorBlendState},
+            depth_stencil::{self, DepthState, DepthStencilState},
             input_assembly::{InputAssemblyState, PrimitiveTopology},
             multisample::MultisampleState,
-            rasterization::RasterizationState,
+            rasterization::{CullMode, FrontFace, RasterizationState},
             vertex_input::{Vertex, VertexDefinition},
             viewport::{Viewport, ViewportState},
             GraphicsPipelineCreateInfo,
@@ -42,10 +51,12 @@ use vulkano::{
 };
 
 use crate::{
+    cube_mesh::CUBE_MESH,
+    mesh::{Mesh, StaticMesh},
     renderer::Renderer,
     shaders::{
         self,
-        default_lit::{self, DefaultLitVertex},
+        default_lit::{self, DefaultLitIndex, DefaultLitVertex},
     },
 };
 
@@ -147,7 +158,8 @@ impl VulkanRenderer {
         .unwrap();
         let render_pass =
             create_render_pass(self.logical_device.clone(), swapchain.clone()).unwrap();
-        let framebuffers = create_framebuffers(&swapchain_images, &render_pass).unwrap();
+        let framebuffers =
+            create_framebuffers(&self.memory_allocator, &swapchain_images, &render_pass).unwrap();
 
         // TODO (Michael): We should create all the pipelines we need to use once per context then just swap between them
         let vs = shaders::default_lit::vs::load(self.logical_device.clone()).unwrap();
@@ -213,8 +225,6 @@ impl Renderer for VulkanRenderer {
             })
         }
 
-        let vertex_buffer = create_vertex_buffer(&self.memory_allocator, verticies).unwrap();
-
         let uniform_buffer = SubbufferAllocator::new(
             self.memory_allocator.clone(),
             SubbufferAllocatorCreateInfo {
@@ -228,7 +238,8 @@ impl Renderer for VulkanRenderer {
         let render_context = &self.fixed_extent_render_context.as_ref().unwrap();
 
         let uniform_buffer_subbuffer = {
-            let rotation = glam::Mat4::from_rotation_y(40.0);
+            let mut rotation = glam::Mat4::from_rotation_y(30.0);
+            rotation *= glam::Mat4::from_rotation_x(40.0 * PI / 180.0);
 
             // note: this teapot was meant for OpenGL where the origin is at the lower left
             //       instead the origin is at the upper left in Vulkan, so we reverse the Y axis
@@ -240,7 +251,7 @@ impl Renderer for VulkanRenderer {
                 glam::Vec3::new(0.0, 0.0, 0.0),
                 glam::Vec3::new(0.0, -1.0, 0.0),
             );
-            let scale = glam::Mat4::from_scale(glam::vec3(0.1, 0.1, 0.1));
+            let scale = glam::Mat4::from_scale(glam::vec3(0.5, 0.5, 0.5));
 
             let uniform_data = default_lit::vs::Transform {
                 world: rotation.to_cols_array_2d(),
@@ -269,12 +280,13 @@ impl Renderer for VulkanRenderer {
         .unwrap();
 
         let command_buffers = create_command_buffers(
+            &self.memory_allocator,
             &self.command_buffer_allocator,
             &render_context.framebuffers,
             &render_context.queue,
             &render_context.active_graphics_pipeline,
             descriptor_set.clone(),
-            &vertex_buffer,
+            CUBE_MESH,
         );
 
         let (image_idx, _suboptimal, acquired_future) =
@@ -318,7 +330,7 @@ fn create_swapchain(
             image_color_space: color_space.to_owned(),
             image_extent: capabilities.max_image_extent,
             image_array_layers: capabilities.max_image_array_layers,
-            image_usage: ImageUsage::COLOR_ATTACHMENT,
+            image_usage: capabilities.supported_usage_flags,
             composite_alpha: capabilities
                 .supported_composite_alpha
                 .into_iter()
@@ -344,19 +356,44 @@ fn create_render_pass(
                 samples: 1,
                 load_op: Clear,
                 store_op: Store
+            },
+            depth: {
+                format: Format::D16_UNORM,
+                samples: 1,
+                load_op: Clear,
+                store_op: DontCare
             }
         },
         pass: {
             color: [color],
-            depth_stencil: {},
+            depth_stencil: {depth},
         },
     )
 }
 
 fn create_framebuffers(
+    memory_allocator: &Arc<StandardMemoryAllocator>,
     images: &[Arc<Image>],
     render_pass: &Arc<RenderPass>,
 ) -> Result<Vec<Arc<Framebuffer>>, Validated<vulkano::VulkanError>> {
+    let extent = images[0].extent();
+    let depth_stencil_image = Image::new(
+        memory_allocator.clone(),
+        ImageCreateInfo {
+            format: Format::D16_UNORM,
+            usage: ImageUsage::DEPTH_STENCIL_ATTACHMENT,
+            extent: extent,
+            ..Default::default()
+        },
+        AllocationCreateInfo {
+            memory_type_filter: MemoryTypeFilter::PREFER_DEVICE
+                | MemoryTypeFilter::HOST_SEQUENTIAL_WRITE,
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    let depth_stencil_view = ImageView::new_default(depth_stencil_image.clone()).unwrap();
+
     images
         .iter()
         .map(|image| {
@@ -365,7 +402,7 @@ fn create_framebuffers(
             Framebuffer::new(
                 render_pass.clone(),
                 FramebufferCreateInfo {
-                    attachments: vec![view],
+                    attachments: vec![view, depth_stencil_view.clone()],
                     ..Default::default()
                 },
             )
@@ -490,19 +527,26 @@ fn create_graphics_pipeline(
             stages: stages.into_iter().collect(),
             vertex_input_state: Some(vertex_input_state),
             input_assembly_state: Some(InputAssemblyState {
-                topology: PrimitiveTopology::TriangleStrip,
                 ..Default::default()
             }),
             viewport_state: Some(ViewportState {
                 viewports: [viewport].into_iter().collect(),
                 ..Default::default()
             }),
-            rasterization_state: Some(RasterizationState::default()),
+            rasterization_state: Some(RasterizationState {
+                cull_mode: CullMode::Back,
+                front_face: FrontFace::Clockwise,
+                ..Default::default()
+            }),
             multisample_state: Some(MultisampleState::default()),
             color_blend_state: Some(ColorBlendState::with_attachment_states(
                 subpass.num_color_attachments(),
                 ColorBlendAttachmentState::default(),
             )),
+            depth_stencil_state: Some(DepthStencilState {
+                depth: Some(DepthState::simple()),
+                ..Default::default()
+            }),
             subpass: Some(subpass.into()),
             ..GraphicsPipelineCreateInfo::layout(layout)
         },
@@ -510,19 +554,58 @@ fn create_graphics_pipeline(
 }
 
 fn create_command_buffers(
-    allocator: &StandardCommandBufferAllocator,
+    memory_allocator: &Arc<StandardMemoryAllocator>,
+    command_buffer_allocator: &StandardCommandBufferAllocator,
     frame_buffers: &[Arc<Framebuffer>],
     queue: &Arc<Queue>,
     pipeline: &Arc<GraphicsPipeline>,
     descriptor_set: Arc<PersistentDescriptorSet>,
-    vertex_buffer: &Subbuffer<[DefaultLitVertex]>,
+    mesh: impl Mesh,
 ) -> Vec<Arc<PrimaryAutoCommandBuffer>> {
+    let mesh_verticies = mesh.verticies();
+    let mesh_normals = mesh.normals();
+
+    let mut verticies: Vec<DefaultLitVertex> = vec![];
+    let mut vert_idx = 0;
+    while vert_idx < mesh_verticies.len() {
+        verticies.push(DefaultLitVertex {
+            position: [
+                mesh_verticies[vert_idx],
+                mesh_verticies[vert_idx + 1],
+                mesh_verticies[vert_idx + 2],
+            ],
+            normal: [
+                mesh_normals[vert_idx],
+                mesh_normals[vert_idx + 1],
+                mesh_normals[vert_idx + 2],
+            ],
+        });
+        vert_idx += 3;
+    }
+
+    let vertex_buffer = create_vertex_buffer(&memory_allocator, verticies).unwrap();
+
+    let index_buffer = Buffer::from_iter(
+        memory_allocator.clone(),
+        BufferCreateInfo {
+            usage: BufferUsage::INDEX_BUFFER,
+            ..Default::default()
+        },
+        AllocationCreateInfo {
+            memory_type_filter: MemoryTypeFilter::PREFER_DEVICE
+                | MemoryTypeFilter::HOST_SEQUENTIAL_WRITE,
+            ..Default::default()
+        },
+        mesh.indicies().to_owned().iter().map(|index| *index),
+    )
+    .unwrap();
+
     frame_buffers
         .iter()
         .map(|frame_buffer| {
             // TODO (Michael): Improve the error handling here
             let mut builder = AutoCommandBufferBuilder::primary(
-                allocator,
+                command_buffer_allocator,
                 queue.queue_family_index(),
                 CommandBufferUsage::MultipleSubmit,
             )
@@ -531,7 +614,10 @@ fn create_command_buffers(
             builder
                 .begin_render_pass(
                     RenderPassBeginInfo {
-                        clear_values: vec![Some([0.0, 0.0, 0.0, 1.0].into())],
+                        clear_values: vec![
+                            Some([0.0, 0.0, 0.0, 1.0].into()),
+                            Some(format::ClearValue::Depth(1.0)),
+                        ],
                         ..RenderPassBeginInfo::framebuffer(frame_buffer.clone())
                     },
                     SubpassBeginInfo {
@@ -550,7 +636,9 @@ fn create_command_buffers(
                     descriptor_set.clone(),
                 )
                 .unwrap()
-                .draw(vertex_buffer.len() as u32, 1, 0, 0)
+                .bind_index_buffer(index_buffer.clone())
+                .unwrap()
+                .draw_indexed(index_buffer.len() as u32, 1, 0, 0, 0)
                 .unwrap()
                 .end_render_pass(Default::default())
                 .unwrap();
