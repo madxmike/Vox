@@ -1,11 +1,18 @@
-use std::sync::Arc;
+use std::{f32::consts::FRAC_PI_2, os::raw, sync::Arc};
 
 use sdl2::video::Window;
 use vulkano::{
-    buffer::{AllocateBufferError, Buffer, BufferCreateInfo, BufferUsage, Subbuffer},
+    buffer::{
+        allocator::{SubbufferAllocator, SubbufferAllocatorCreateInfo},
+        AllocateBufferError, Buffer, BufferCreateInfo, BufferUsage, Subbuffer,
+    },
     command_buffer::{
         allocator::StandardCommandBufferAllocator, AutoCommandBufferBuilder, CommandBufferUsage,
         PrimaryAutoCommandBuffer, RenderPassBeginInfo, SubpassBeginInfo,
+    },
+    descriptor_set::{
+        self, allocator::StandardDescriptorSetAllocator, layout::DescriptorSetLayout,
+        DescriptorSet, DescriptorSetsCollection, PersistentDescriptorSet, WriteDescriptorSet,
     },
     device::{
         physical::{PhysicalDevice, PhysicalDeviceType},
@@ -17,7 +24,7 @@ use vulkano::{
     pipeline::{
         graphics::{
             color_blend::{ColorBlendAttachmentState, ColorBlendState},
-            input_assembly::InputAssemblyState,
+            input_assembly::{InputAssemblyState, PrimitiveTopology},
             multisample::MultisampleState,
             rasterization::RasterizationState,
             vertex_input::{Vertex, VertexDefinition},
@@ -25,7 +32,7 @@ use vulkano::{
             GraphicsPipelineCreateInfo,
         },
         layout::PipelineDescriptorSetLayoutCreateInfo,
-        GraphicsPipeline, PipelineLayout, PipelineShaderStageCreateInfo,
+        GraphicsPipeline, Pipeline, PipelineLayout, PipelineShaderStageCreateInfo,
     },
     render_pass::{Framebuffer, FramebufferCreateInfo, RenderPass, Subpass},
     shader::ShaderModule,
@@ -36,7 +43,10 @@ use vulkano::{
 
 use crate::{
     renderer::Renderer,
-    shaders::{self, default_lit::DefaultLitVertex},
+    shaders::{
+        self,
+        default_lit::{self, DefaultLitVertex},
+    },
 };
 
 const REQUIRED_DEVICE_EXTENSIONS: DeviceExtensions = DeviceExtensions {
@@ -54,6 +64,7 @@ pub struct VulkanRenderer {
 
     memory_allocator: Arc<StandardMemoryAllocator>,
     command_buffer_allocator: StandardCommandBufferAllocator,
+    descriptor_set_allocator: Arc<StandardDescriptorSetAllocator>,
 
     fixed_extent_render_context: Option<VulkanFixedExtentRenderContext>,
 }
@@ -108,6 +119,10 @@ impl VulkanRenderer {
             Arc::new(StandardMemoryAllocator::new_default(logical_device.clone()));
         let command_buffer_allocator =
             StandardCommandBufferAllocator::new(logical_device.clone(), Default::default());
+        let descriptor_set_allocator = Arc::new(StandardDescriptorSetAllocator::new(
+            logical_device.clone(),
+            Default::default(),
+        ));
 
         VulkanRenderer {
             sdl_window,
@@ -118,6 +133,7 @@ impl VulkanRenderer {
             queues,
             memory_allocator,
             command_buffer_allocator,
+            descriptor_set_allocator,
             fixed_extent_render_context: None,
         }
     }
@@ -172,28 +188,92 @@ impl Renderer for VulkanRenderer {
             self.fixed_extent_render_context = Some(self.create_fixed_render_context());
         }
 
-        let verticies = vec![
-            DefaultLitVertex {
-                position: [-0.5, 0.5],
-                color: [1.0, 0.0, 0.0],
-            },
-            DefaultLitVertex {
-                position: [0.5, 0.5],
-                color: [0.0, 1.0, 0.0],
-            },
-            DefaultLitVertex {
-                position: [-0.5, -0.5],
-                color: [0.0, 0.0, 1.0],
-            },
+        let raw_verticies = vec![
+            [-1.0, 1.0, 1.0],   // Front-top-left
+            [1.0, 1.0, 1.0],    // Front-top-right
+            [-1.0, -1.0, 1.0],  // Front-bottom-left
+            [1.0, -1.0, 1.0],   // Front-bottom-right
+            [1.0, -1.0, -1.0],  // Back-bottom-right
+            [1.0, 1.0, 1.0],    // Front-top-right
+            [1.0, 1.0, -1.0],   // Back-top-right
+            [-1.0, 1.0, 1.0],   // Front-top-left
+            [-1.0, 1.0, -1.0],  // Back-top-left
+            [-1.0, -1.0, 1.0],  // Front-bottom-left
+            [-1.0, -1.0, -1.0], // Back-bottom-left
+            [1.0, -1.0, -1.0],  // Back-bottom-right
+            [-1.0, 1.0, -1.0],  // Back-top-left
+            [1.0, 1.0, -1.0],   // Back-top-right
         ];
+
+        let mut verticies: Vec<DefaultLitVertex> = vec![];
+        for vert in raw_verticies {
+            verticies.push(DefaultLitVertex {
+                position: vert,
+                normal: [0.0, 0.0, 0.0],
+            })
+        }
+
         let vertex_buffer = create_vertex_buffer(&self.memory_allocator, verticies).unwrap();
 
+        let uniform_buffer = SubbufferAllocator::new(
+            self.memory_allocator.clone(),
+            SubbufferAllocatorCreateInfo {
+                buffer_usage: BufferUsage::UNIFORM_BUFFER,
+                memory_type_filter: MemoryTypeFilter::PREFER_DEVICE
+                    | MemoryTypeFilter::HOST_SEQUENTIAL_WRITE,
+                ..Default::default()
+            },
+        );
+
         let render_context = &self.fixed_extent_render_context.as_ref().unwrap();
+
+        let uniform_buffer_subbuffer = {
+            let rotation = glam::Mat4::from_rotation_y(40.0);
+
+            // note: this teapot was meant for OpenGL where the origin is at the lower left
+            //       instead the origin is at the upper left in Vulkan, so we reverse the Y axis
+            let aspect_ratio = render_context.swapchain.image_extent()[0] as f32
+                / render_context.swapchain.image_extent()[1] as f32;
+            let proj = glam::Mat4::perspective_rh(FRAC_PI_2, aspect_ratio, 0.01, 100.0);
+            let view = glam::Mat4::look_at_rh(
+                glam::Vec3::new(0.3, 0.3, 1.0),
+                glam::Vec3::new(0.0, 0.0, 0.0),
+                glam::Vec3::new(0.0, -1.0, 0.0),
+            );
+            let scale = glam::Mat4::from_scale(glam::vec3(0.1, 0.1, 0.1));
+
+            let uniform_data = default_lit::vs::Transform {
+                world: rotation.to_cols_array_2d(),
+                view: (view * scale).to_cols_array_2d(),
+                projection: proj.to_cols_array_2d(),
+            };
+
+            let subbuffer = uniform_buffer.allocate_sized().unwrap();
+            *subbuffer.write().unwrap() = uniform_data;
+
+            subbuffer
+        };
+
+        let descriptor_set_layout = render_context
+            .active_graphics_pipeline
+            .layout()
+            .set_layouts()
+            .get(0)
+            .unwrap();
+        let descriptor_set = PersistentDescriptorSet::new(
+            &self.descriptor_set_allocator.clone(),
+            descriptor_set_layout.clone(),
+            [WriteDescriptorSet::buffer(0, uniform_buffer_subbuffer)],
+            [],
+        )
+        .unwrap();
+
         let command_buffers = create_command_buffers(
             &self.command_buffer_allocator,
             &render_context.framebuffers,
             &render_context.queue,
             &render_context.active_graphics_pipeline,
+            descriptor_set.clone(),
             &vertex_buffer,
         );
 
@@ -409,7 +489,10 @@ fn create_graphics_pipeline(
         GraphicsPipelineCreateInfo {
             stages: stages.into_iter().collect(),
             vertex_input_state: Some(vertex_input_state),
-            input_assembly_state: Some(InputAssemblyState::default()),
+            input_assembly_state: Some(InputAssemblyState {
+                topology: PrimitiveTopology::TriangleStrip,
+                ..Default::default()
+            }),
             viewport_state: Some(ViewportState {
                 viewports: [viewport].into_iter().collect(),
                 ..Default::default()
@@ -431,6 +514,7 @@ fn create_command_buffers(
     frame_buffers: &[Arc<Framebuffer>],
     queue: &Arc<Queue>,
     pipeline: &Arc<GraphicsPipeline>,
+    descriptor_set: Arc<PersistentDescriptorSet>,
     vertex_buffer: &Subbuffer<[DefaultLitVertex]>,
 ) -> Vec<Arc<PrimaryAutoCommandBuffer>> {
     frame_buffers
@@ -458,6 +542,13 @@ fn create_command_buffers(
                 .bind_pipeline_graphics(pipeline.clone())
                 .unwrap()
                 .bind_vertex_buffers(0, vertex_buffer.clone())
+                .unwrap()
+                .bind_descriptor_sets(
+                    vulkano::pipeline::PipelineBindPoint::Graphics,
+                    pipeline.layout().clone(),
+                    0,
+                    descriptor_set.clone(),
+                )
                 .unwrap()
                 .draw(vertex_buffer.len() as u32, 1, 0, 0)
                 .unwrap()
