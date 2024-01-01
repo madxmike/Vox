@@ -7,10 +7,6 @@ use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 
 use vulkan_renderer::VulkanRenderer;
-use vulkano::buffer::BufferContents;
-
-use vulkano::pipeline::graphics::vertex_input::Vertex;
-
 
 fn main() {
     let sdl_context = sdl2::init().unwrap();
