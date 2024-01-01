@@ -34,7 +34,10 @@ use vulkano::{
     Handle, Validated, VulkanLibrary, VulkanObject,
 };
 
-use crate::{fs, renderer::Renderer, vs, MyVertex};
+use crate::{
+    renderer::Renderer,
+    shaders::{self, default_lit::DefaultLitVertex},
+};
 
 const REQUIRED_DEVICE_EXTENSIONS: DeviceExtensions = DeviceExtensions {
     khr_swapchain: true,
@@ -54,13 +57,22 @@ pub struct VulkanRenderer {
 
     fixed_extent_render_context: Option<VulkanFixedExtentRenderContext>,
 }
+struct VulkanFixedExtentRenderContext {
+    swapchain: Arc<Swapchain>,
+    swapchain_images: Vec<Arc<Image>>,
+    render_pass: Arc<RenderPass>,
+    framebuffers: Vec<Arc<Framebuffer>>,
+    queue: Arc<Queue>,
+
+    active_graphics_pipeline: Arc<GraphicsPipeline>,
+}
 
 impl VulkanRenderer {
     pub fn from_sdl_window(sdl_window: Window) -> VulkanRenderer {
-        let library = VulkanLibrary::new().unwrap();
+        let _library = VulkanLibrary::new().unwrap();
 
         // TODO (Michael): Enable validation features
-        let mut instance_extensions =
+        let instance_extensions =
             InstanceExtensions::from_iter(sdl_window.vulkan_instance_extensions().unwrap());
 
         let vulkan_instance = Instance::new(VulkanLibrary::new().unwrap(), {
@@ -111,7 +123,7 @@ impl VulkanRenderer {
     }
 
     fn create_fixed_render_context(&mut self) -> VulkanFixedExtentRenderContext {
-        let (mut swapchain, swapchain_images) = create_swapchain(
+        let (swapchain, swapchain_images) = create_swapchain(
             &self.physical_device,
             &self.logical_device,
             &self.vulkan_surface,
@@ -122,10 +134,10 @@ impl VulkanRenderer {
         let framebuffers = create_framebuffers(&swapchain_images, &render_pass).unwrap();
 
         // TODO (Michael): We should create all the pipelines we need to use once per context then just swap between them
-        let vs = vs::load(self.logical_device.clone()).unwrap();
-        let fs = fs::load(self.logical_device.clone()).unwrap();
+        let vs = shaders::default_lit::vs::load(self.logical_device.clone()).unwrap();
+        let fs = shaders::default_lit::fs::load(self.logical_device.clone()).unwrap();
 
-        let mut viewport = Viewport {
+        let viewport = Viewport {
             offset: [0.0, 0.0],
             extent: [
                 self.sdl_window.vulkan_drawable_size().0 as f32,
@@ -161,16 +173,16 @@ impl Renderer for VulkanRenderer {
         }
 
         let verticies = vec![
-            MyVertex {
+            DefaultLitVertex {
                 position: [-0.5, 0.5],
                 color: [1.0, 0.0, 0.0],
             },
-            MyVertex {
+            DefaultLitVertex {
                 position: [0.5, 0.5],
                 color: [0.0, 1.0, 0.0],
             },
-            MyVertex {
-                position: [0.0, -0.5],
+            DefaultLitVertex {
+                position: [-0.5, -0.5],
                 color: [0.0, 0.0, 1.0],
             },
         ];
@@ -185,7 +197,7 @@ impl Renderer for VulkanRenderer {
             &vertex_buffer,
         );
 
-        let (image_idx, suboptimal, acquired_future) =
+        let (image_idx, _suboptimal, acquired_future) =
             swapchain::acquire_next_image(render_context.swapchain.clone(), None).unwrap();
 
         let _ = acquired_future
@@ -205,16 +217,6 @@ impl Renderer for VulkanRenderer {
             .then_signal_fence_and_flush()
             .unwrap();
     }
-}
-
-struct VulkanFixedExtentRenderContext {
-    swapchain: Arc<Swapchain>,
-    swapchain_images: Vec<Arc<Image>>,
-    render_pass: Arc<RenderPass>,
-    framebuffers: Vec<Arc<Framebuffer>>,
-    queue: Arc<Queue>,
-
-    active_graphics_pipeline: Arc<GraphicsPipeline>,
 }
 
 fn create_swapchain(
@@ -293,8 +295,8 @@ fn create_framebuffers(
 
 fn create_vertex_buffer(
     memory_allocator: &Arc<StandardMemoryAllocator>,
-    verticies: Vec<MyVertex>,
-) -> Result<Subbuffer<[MyVertex]>, Validated<AllocateBufferError>> {
+    verticies: Vec<DefaultLitVertex>,
+) -> Result<Subbuffer<[DefaultLitVertex]>, Validated<AllocateBufferError>> {
     Buffer::from_iter(
         memory_allocator.clone(),
         BufferCreateInfo {
@@ -383,7 +385,8 @@ fn create_graphics_pipeline(
     let vs = vs.entry_point("main").unwrap();
     let fs = fs.entry_point("main").unwrap();
 
-    let vertex_input_state = MyVertex::per_vertex().definition(&vs.info().input_interface)?;
+    let vertex_input_state =
+        DefaultLitVertex::per_vertex().definition(&vs.info().input_interface)?;
 
     let stages = [
         PipelineShaderStageCreateInfo::new(vs),
@@ -428,7 +431,7 @@ fn create_command_buffers(
     frame_buffers: &[Arc<Framebuffer>],
     queue: &Arc<Queue>,
     pipeline: &Arc<GraphicsPipeline>,
-    vertex_buffer: &Subbuffer<[MyVertex]>,
+    vertex_buffer: &Subbuffer<[DefaultLitVertex]>,
 ) -> Vec<Arc<PrimaryAutoCommandBuffer>> {
     frame_buffers
         .iter()
