@@ -198,7 +198,7 @@ impl VulkanRenderer {
 }
 
 impl Renderer for VulkanRenderer {
-    fn render(&mut self, camera: &Camera) {
+    fn render(&mut self, camera: &Camera, mesh: impl Mesh) {
         if let None = self.fixed_extent_render_context {
             self.fixed_extent_render_context = Some(self.create_fixed_render_context());
         }
@@ -254,7 +254,7 @@ impl Renderer for VulkanRenderer {
             &render_context.queue,
             &render_context.active_graphics_pipeline,
             descriptor_set.clone(),
-            CUBE_MESH,
+            mesh,
         );
 
         let (image_idx, _suboptimal, acquired_future) =
@@ -534,14 +534,10 @@ fn create_command_buffers(
     let mesh_normals = mesh.normals();
 
     let mut verticies: Vec<DefaultLitVertex> = vec![];
-    for i in (0..mesh_verticies.len()).step_by(3) {
+    for i in 0..mesh.verticies().len() {
         verticies.push(DefaultLitVertex {
-            position: [
-                mesh_verticies[i],
-                mesh_verticies[i + 1],
-                mesh_verticies[i + 2],
-            ],
-            normal: [mesh_normals[i], mesh_normals[i + 1], mesh_normals[i + 2]],
+            position: mesh_verticies[i].clone(),
+            normal: mesh_normals[i].clone(),
         });
     }
 

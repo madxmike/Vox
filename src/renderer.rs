@@ -1,5 +1,5 @@
-use crate::camera::Camera;
+use crate::{camera::Camera, mesh::Mesh};
 
 pub trait Renderer {
-    fn render(&mut self, camera: &Camera);
+    fn render(&mut self, camera: &Camera, mesh: impl Mesh);
 }

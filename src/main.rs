@@ -5,6 +5,7 @@ mod renderer;
 mod shaders;
 mod transform;
 mod vulkan_renderer;
+mod world;
 
 use std::f32::consts::PI;
 use std::time::SystemTime;
@@ -14,9 +15,11 @@ use renderer::Renderer;
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 
+use sdl2::mouse::MouseButton;
 use sdl2::sys::KeyCode;
 use transform::Transform;
 use vulkan_renderer::VulkanRenderer;
+use world::world_generation_system;
 
 fn main() {
     let sdl_context = sdl2::init().unwrap();
@@ -46,12 +49,15 @@ fn main() {
         aspect_ratio,
     };
 
+    let world = world_generation_system::generate_world(10);
+
     let timer_subsystem = sdl_context.timer().unwrap();
     let mut current_render_tick_time = timer_subsystem.performance_counter();
     let mut last_render_tick_time = current_render_tick_time.clone();
     let mut delta_time = 0.0;
 
     let camera_movement_speed = 5.0;
+    let chunk_mesh = world.chunks[0].build_chunk_mesh();
     'running: loop {
         for event in event_pump.poll_iter() {
             match event {
@@ -104,18 +110,11 @@ fn main() {
 
         last_render_tick_time = current_render_tick_time;
 
-        vulkan_renderer.render(&camera);
+        vulkan_renderer.render(&camera, chunk_mesh.clone());
         current_render_tick_time = timer_subsystem.performance_counter();
 
         delta_time = ((current_render_tick_time - last_render_tick_time) as f32)
             / timer_subsystem.performance_frequency() as f32;
-
-        dbg!(
-            "{}, {}, {}",
-            timer_subsystem.performance_counter(),
-            timer_subsystem.performance_frequency(),
-            delta_time
-        );
         ::std::thread::sleep(::std::time::Duration::new(0, 1_000_000_000u32 / 60));
     }
 }
