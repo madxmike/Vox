@@ -7,12 +7,14 @@ mod transform;
 mod vulkan_renderer;
 
 use std::f32::consts::PI;
+use std::time::SystemTime;
 
 use camera::Camera;
 use renderer::Renderer;
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 
+use sdl2::sys::KeyCode;
 use transform::Transform;
 use vulkan_renderer::VulkanRenderer;
 
@@ -33,7 +35,7 @@ fn main() {
 
     let mut event_pump = sdl_context.event_pump().unwrap();
 
-    let camera = Camera {
+    let mut camera = Camera {
         transform: Transform {
             position: glam::vec3(0.0, 0.0, 3.0),
             rotation: glam::Quat::from_euler(glam::EulerRot::XYZ, 36.7 * PI / 180.0, 0.0, 0.0),
@@ -53,6 +55,30 @@ fn main() {
                     ..
                 } => {
                     break 'running;
+                }
+                Event::KeyDown {
+                    keycode: Some(Keycode::W),
+                    ..
+                } => {
+                    camera.transform.position.z -= 1.0;
+                }
+                Event::KeyDown {
+                    keycode: Some(Keycode::S),
+                    ..
+                } => {
+                    camera.transform.position.z += 1.0;
+                }
+                Event::KeyDown {
+                    keycode: Some(Keycode::A),
+                    ..
+                } => {
+                    camera.transform.position.x -= 1.0;
+                }
+                Event::KeyDown {
+                    keycode: Some(Keycode::D),
+                    ..
+                } => {
+                    camera.transform.position.x += 1.0;
                 }
                 _ => {}
             }
