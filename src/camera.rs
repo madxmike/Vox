@@ -1,5 +1,7 @@
 use std::f32::consts::PI;
 
+use glam::vec3;
+
 use crate::transform::Transform;
 
 // TODO (Michael): Could we apply some nicer types here to ensure correctness?
@@ -21,7 +23,8 @@ impl Camera {
         let model = glam::Mat4::from_quat(self.transform.rotation);
         let view = glam::Mat4::look_at_rh(
             self.transform.position,
-            glam::vec3(0.0, 0.0, 0.0),
+            // TODO (Michael): Create vectors for this, possibly off the transform?
+            self.transform.position + vec3(0.0, 0.0, -1.0),
             glam::vec3(0.0, -1.0, 0.0),
         );
         let projection = glam::Mat4::perspective_rh(

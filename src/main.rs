@@ -38,7 +38,7 @@ fn main() {
     let mut camera = Camera {
         transform: Transform {
             position: glam::vec3(0.0, 0.0, 3.0),
-            rotation: glam::Quat::from_euler(glam::EulerRot::XYZ, 36.7 * PI / 180.0, 0.0, 0.0),
+            rotation: glam::Quat::from_euler(glam::EulerRot::XYZ, 0.0 * PI / 180.0, 0.0, 0.0),
         },
         near_clipping_plane: 0.01,
         far_clipping_plane: 100.0,
