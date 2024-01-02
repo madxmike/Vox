@@ -46,6 +46,12 @@ fn main() {
         aspect_ratio,
     };
 
+    let timer_subsystem = sdl_context.timer().unwrap();
+    let mut current_render_tick_time = timer_subsystem.performance_counter();
+    let mut last_render_tick_time = current_render_tick_time.clone();
+    let mut delta_time = 0.0;
+
+    let camera_movement_speed = 5.0;
     'running: loop {
         for event in event_pump.poll_iter() {
             match event {
@@ -60,32 +66,56 @@ fn main() {
                     keycode: Some(Keycode::W),
                     ..
                 } => {
-                    camera.transform.position.z -= 1.0;
+                    camera.transform.position.z -= camera_movement_speed * delta_time;
                 }
                 Event::KeyDown {
                     keycode: Some(Keycode::S),
                     ..
                 } => {
-                    camera.transform.position.z += 1.0;
+                    camera.transform.position.z += camera_movement_speed * delta_time;
                 }
                 Event::KeyDown {
                     keycode: Some(Keycode::A),
                     ..
                 } => {
-                    camera.transform.position.x -= 1.0;
+                    camera.transform.position.x -= camera_movement_speed * delta_time;
                 }
                 Event::KeyDown {
                     keycode: Some(Keycode::D),
                     ..
                 } => {
-                    camera.transform.position.x += 1.0;
+                    camera.transform.position.x += camera_movement_speed * delta_time;
+                }
+                Event::KeyDown {
+                    keycode: Some(Keycode::Space),
+                    ..
+                } => {
+                    camera.transform.position.y += camera_movement_speed * delta_time;
+                }
+                Event::KeyDown {
+                    keycode: Some(Keycode::LCtrl),
+                    ..
+                } => {
+                    camera.transform.position.y -= camera_movement_speed * delta_time;
                 }
                 _ => {}
             }
         }
 
-        vulkan_renderer.render(&camera);
+        last_render_tick_time = current_render_tick_time;
 
+        vulkan_renderer.render(&camera);
+        current_render_tick_time = timer_subsystem.performance_counter();
+
+        delta_time = ((current_render_tick_time - last_render_tick_time) as f32)
+            / timer_subsystem.performance_frequency() as f32;
+
+        dbg!(
+            "{}, {}, {}",
+            timer_subsystem.performance_counter(),
+            timer_subsystem.performance_frequency(),
+            delta_time
+        );
         ::std::thread::sleep(::std::time::Duration::new(0, 1_000_000_000u32 / 60));
     }
 }
