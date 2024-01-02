@@ -4,6 +4,7 @@ use std::{
     sync::Arc,
 };
 
+use glam::Mat4;
 use sdl2::video::Window;
 use vulkano::{
     buffer::{
@@ -51,6 +52,7 @@ use vulkano::{
 };
 
 use crate::{
+    camera::Camera,
     cube_mesh::CUBE_MESH,
     mesh::{Mesh, StaticMesh},
     renderer::Renderer,
@@ -58,6 +60,7 @@ use crate::{
         self,
         default_lit::{self, DefaultLitIndex, DefaultLitVertex},
     },
+    transform::Transform,
 };
 
 const REQUIRED_DEVICE_EXTENSIONS: DeviceExtensions = DeviceExtensions {
@@ -195,37 +198,12 @@ impl VulkanRenderer {
 }
 
 impl Renderer for VulkanRenderer {
-    fn render(&mut self) {
+    fn render(&mut self, camera: &Camera) {
         if let None = self.fixed_extent_render_context {
             self.fixed_extent_render_context = Some(self.create_fixed_render_context());
         }
 
-        let raw_verticies = vec![
-            [-1.0, 1.0, 1.0],   // Front-top-left
-            [1.0, 1.0, 1.0],    // Front-top-right
-            [-1.0, -1.0, 1.0],  // Front-bottom-left
-            [1.0, -1.0, 1.0],   // Front-bottom-right
-            [1.0, -1.0, -1.0],  // Back-bottom-right
-            [1.0, 1.0, 1.0],    // Front-top-right
-            [1.0, 1.0, -1.0],   // Back-top-right
-            [-1.0, 1.0, 1.0],   // Front-top-left
-            [-1.0, 1.0, -1.0],  // Back-top-left
-            [-1.0, -1.0, 1.0],  // Front-bottom-left
-            [-1.0, -1.0, -1.0], // Back-bottom-left
-            [1.0, -1.0, -1.0],  // Back-bottom-right
-            [-1.0, 1.0, -1.0],  // Back-top-left
-            [1.0, 1.0, -1.0],   // Back-top-right
-        ];
-
-        let mut verticies: Vec<DefaultLitVertex> = vec![];
-        for vert in raw_verticies {
-            verticies.push(DefaultLitVertex {
-                position: vert,
-                normal: [0.0, 0.0, 0.0],
-            })
-        }
-
-        let uniform_buffer = SubbufferAllocator::new(
+        let mvp_buffer = SubbufferAllocator::new(
             self.memory_allocator.clone(),
             SubbufferAllocatorCreateInfo {
                 buffer_usage: BufferUsage::UNIFORM_BUFFER,
@@ -237,30 +215,20 @@ impl Renderer for VulkanRenderer {
 
         let render_context = &self.fixed_extent_render_context.as_ref().unwrap();
 
-        let uniform_buffer_subbuffer = {
-            let mut rotation = glam::Mat4::from_rotation_y(30.0);
-            rotation *= glam::Mat4::from_rotation_x(40.0 * PI / 180.0);
+        let aspect_ratio = render_context.swapchain.image_extent()[0] as f32
+            / render_context.swapchain.image_extent()[1] as f32;
 
-            // note: this teapot was meant for OpenGL where the origin is at the lower left
-            //       instead the origin is at the upper left in Vulkan, so we reverse the Y axis
-            let aspect_ratio = render_context.swapchain.image_extent()[0] as f32
-                / render_context.swapchain.image_extent()[1] as f32;
-            let proj = glam::Mat4::perspective_rh(FRAC_PI_2, aspect_ratio, 0.01, 100.0);
-            let view = glam::Mat4::look_at_rh(
-                glam::Vec3::new(0.3, 0.3, 1.0),
-                glam::Vec3::new(0.0, 0.0, 0.0),
-                glam::Vec3::new(0.0, -1.0, 0.0),
-            );
-            let scale = glam::Mat4::from_scale(glam::vec3(0.5, 0.5, 0.5));
+        let mvp_buffer_subbuffer = {
+            let (model, view, projection) = camera.mvp();
 
-            let uniform_data = default_lit::vs::Transform {
-                world: rotation.to_cols_array_2d(),
-                view: (view * scale).to_cols_array_2d(),
-                projection: proj.to_cols_array_2d(),
+            let mvp_data = default_lit::vs::MVP {
+                model: model.to_cols_array_2d(),
+                view: view.to_cols_array_2d(),
+                projection: projection.to_cols_array_2d(),
             };
 
-            let subbuffer = uniform_buffer.allocate_sized().unwrap();
-            *subbuffer.write().unwrap() = uniform_data;
+            let subbuffer = mvp_buffer.allocate_sized().unwrap();
+            *subbuffer.write().unwrap() = mvp_data;
 
             subbuffer
         };
@@ -274,7 +242,7 @@ impl Renderer for VulkanRenderer {
         let descriptor_set = PersistentDescriptorSet::new(
             &self.descriptor_set_allocator.clone(),
             descriptor_set_layout.clone(),
-            [WriteDescriptorSet::buffer(0, uniform_buffer_subbuffer)],
+            [WriteDescriptorSet::buffer(0, mvp_buffer_subbuffer)],
             [],
         )
         .unwrap();
@@ -566,21 +534,15 @@ fn create_command_buffers(
     let mesh_normals = mesh.normals();
 
     let mut verticies: Vec<DefaultLitVertex> = vec![];
-    let mut vert_idx = 0;
-    while vert_idx < mesh_verticies.len() {
+    for i in (0..mesh_verticies.len()).step_by(3) {
         verticies.push(DefaultLitVertex {
             position: [
-                mesh_verticies[vert_idx],
-                mesh_verticies[vert_idx + 1],
-                mesh_verticies[vert_idx + 2],
+                mesh_verticies[i],
+                mesh_verticies[i + 1],
+                mesh_verticies[i + 2],
             ],
-            normal: [
-                mesh_normals[vert_idx],
-                mesh_normals[vert_idx + 1],
-                mesh_normals[vert_idx + 2],
-            ],
+            normal: [mesh_normals[i], mesh_normals[i + 1], mesh_normals[i + 2]],
         });
-        vert_idx += 3;
     }
 
     let vertex_buffer = create_vertex_buffer(&memory_allocator, verticies).unwrap();
