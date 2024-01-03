@@ -2,7 +2,7 @@ use std::ops::{Add, Sub};
 
 use super::chunk::{CHUNK_BLOCK_DEPTH, CHUNK_BLOCK_HEIGHT, CHUNK_BLOCK_WIDTH};
 
-#[derive(PartialEq, Eq, Hash, Copy, Clone)]
+#[derive(PartialEq, Eq, Hash, Copy, Clone, Debug)]
 pub struct BlockPosition {
     pub x: i32,
     pub y: i32,

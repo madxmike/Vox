@@ -19,7 +19,7 @@ use sdl2::mouse::MouseButton;
 use sdl2::sys::KeyCode;
 use transform::Transform;
 use vulkan_renderer::VulkanRenderer;
-use world::{chunk, world_generation_system};
+use world::{chunk, world_generation_system, world_render_system::WorldRenderSystem};
 
 fn main() {
     let sdl_context = sdl2::init().unwrap();
@@ -34,7 +34,7 @@ fn main() {
     let aspect_ratio =
         window.vulkan_drawable_size().0 as f32 / window.vulkan_drawable_size().1 as f32;
 
-    let mut vulkan_renderer = VulkanRenderer::from_sdl_window(window);
+    let mut renderer = Box::new(VulkanRenderer::from_sdl_window(window)) as Box<dyn Renderer>;
 
     let mut event_pump = sdl_context.event_pump().unwrap();
 
@@ -57,11 +57,7 @@ fn main() {
     let mut delta_time = 0.0;
 
     let camera_movement_speed = 5.0;
-    let chunk_meshes = world
-        .chunks
-        .iter()
-        .take(1)
-        .map(|(position, chunk)| chunk.build_chunk_mesh());
+    let mut world_render_system = WorldRenderSystem::default();
     'running: loop {
         for event in event_pump.poll_iter() {
             match event {
@@ -113,14 +109,15 @@ fn main() {
         }
 
         last_render_tick_time = current_render_tick_time;
-
-        chunk_meshes
-            .clone()
-            .for_each(|mesh| vulkan_renderer.render(&camera, mesh.clone()));
         current_render_tick_time = timer_subsystem.performance_counter();
+
+        world_render_system
+            .render_world(&mut renderer, &world, &camera)
+            .unwrap();
 
         delta_time = ((current_render_tick_time - last_render_tick_time) as f32)
             / timer_subsystem.performance_frequency() as f32;
+
         ::std::thread::sleep(::std::time::Duration::new(0, 1_000_000_000u32 / 60));
     }
 }

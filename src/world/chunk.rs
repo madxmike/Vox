@@ -1,14 +1,14 @@
 use crate::{
-    cube_mesh::CUBE_MESH,
-    mesh::{Mesh, RuntimeMesh},
+    cube_mesh::{self, CUBE_MESH},
+    mesh::{Mesh, RuntimeMesh, StitchedMesh},
     transform::Position,
 };
 
 use super::{block::Block, block_position::BlockPosition};
 
-pub const CHUNK_BLOCK_WIDTH: usize = 16;
-pub const CHUNK_BLOCK_HEIGHT: usize = 16;
-pub const CHUNK_BLOCK_DEPTH: usize = 16;
+pub const CHUNK_BLOCK_WIDTH: usize = 15;
+pub const CHUNK_BLOCK_HEIGHT: usize = 15;
+pub const CHUNK_BLOCK_DEPTH: usize = 15;
 const CHUNK_SIZE: usize = CHUNK_BLOCK_WIDTH * CHUNK_BLOCK_HEIGHT * CHUNK_BLOCK_DEPTH;
 
 pub enum ChunkAccessorError {
@@ -22,22 +22,37 @@ pub struct Chunk {
 
 impl Chunk {
     pub fn new(origin_position: BlockPosition) -> Self {
-        Chunk {
+        let mut chunk = Chunk {
             origin_position,
             blocks: [None; CHUNK_SIZE],
+        };
+
+        let mut skip = false;
+        for i in 0..CHUNK_SIZE {
+            if skip {
+                skip = false;
+                continue;
+            }
+
+            chunk.blocks[i] = Some(Block::default());
+            skip = true;
         }
+        chunk
     }
 }
 
 impl Chunk {
-    pub fn build_chunk_mesh(&self) -> RuntimeMesh {
-        let mut mesh_verticies: Vec<[f32; 3]> = vec![];
-        let mut mesh_normals: Vec<[f32; 3]> = vec![];
-        let mut mesh_indicies: Vec<u32> = vec![];
+    // TODO (Michael): Move this type of logic to WorldRenderSystem
+    pub fn build_chunk_mesh(&self) -> StitchedMesh {
+        let mut stiched_mesh = StitchedMesh::default();
 
-        for i in 0..CHUNK_SIZE {
-            let local_block_position = Chunk::local_block_position(i);
-            let mut local_verticies: Vec<[f32; 3]> = CUBE_MESH
+        for (i, block) in self.blocks.iter().enumerate() {
+            if let None = block {
+                continue;
+            }
+            let local_block_position = self.world_block_position(i);
+
+            let mesh_verticies: Vec<[f32; 3]> = CUBE_MESH
                 .verticies()
                 .iter()
                 .map(|vertex| {
@@ -48,24 +63,17 @@ impl Chunk {
                     ]
                 })
                 .collect();
-            mesh_verticies.append(local_verticies.as_mut());
-            mesh_normals.append(CUBE_MESH.normals().to_owned().as_mut());
 
-            let num_verticies = CUBE_MESH.verticies().len();
-            let mut local_indicies: Vec<u32> = CUBE_MESH
-                .indicies()
-                .iter()
-                .map(|indicie| indicie + (i * num_verticies) as u32)
-                .collect();
+            let cube_mesh = RuntimeMesh {
+                verticies: mesh_verticies,
+                normals: CUBE_MESH.normals().to_vec(),
+                indicies: CUBE_MESH.indicies().to_vec(),
+            };
 
-            mesh_indicies.append(local_indicies.as_mut())
+            stiched_mesh.stich(cube_mesh);
         }
 
-        RuntimeMesh {
-            verticies: mesh_verticies,
-            normals: mesh_normals,
-            indicies: mesh_indicies,
-        }
+        stiched_mesh
     }
 
     fn local_block_position(block_index: usize) -> BlockPosition {

@@ -198,7 +198,7 @@ impl VulkanRenderer {
 }
 
 impl Renderer for VulkanRenderer {
-    fn render(&mut self, camera: &Camera, mesh: impl Mesh) {
+    fn render(&mut self, camera: &Camera, mesh: Box<dyn Mesh>) {
         if let None = self.fixed_extent_render_context {
             self.fixed_extent_render_context = Some(self.create_fixed_render_context());
         }
@@ -214,9 +214,6 @@ impl Renderer for VulkanRenderer {
         );
 
         let render_context = &self.fixed_extent_render_context.as_ref().unwrap();
-
-        let aspect_ratio = render_context.swapchain.image_extent()[0] as f32
-            / render_context.swapchain.image_extent()[1] as f32;
 
         let mvp_buffer_subbuffer = {
             let (model, view, projection) = camera.mvp();
@@ -528,7 +525,7 @@ fn create_command_buffers(
     queue: &Arc<Queue>,
     pipeline: &Arc<GraphicsPipeline>,
     descriptor_set: Arc<PersistentDescriptorSet>,
-    mesh: impl Mesh,
+    mesh: Box<dyn Mesh>,
 ) -> Vec<Arc<PrimaryAutoCommandBuffer>> {
     let mesh_verticies = mesh.verticies();
     let mesh_normals = mesh.normals();
