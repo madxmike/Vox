@@ -7,7 +7,7 @@ use std::{
 
 use crate::{
     camera::Camera,
-    mesh::{Mesh, RuntimeMesh, StitchedMesh},
+    mesh::{Mesh, RuntimeMesh, StitchedMesh, WindingDirection},
     renderer::Renderer,
 };
 
@@ -94,52 +94,70 @@ impl WorldRenderSystem {
         for (direction, neighbor) in neighbors.iter() {
             match (direction, neighbor) {
                 (Direction::North, None) => {
-                    block_mesh.add_quad([
-                        glam::vec3(1.0, 0.0, 1.0) + block_position_vec3,
-                        glam::vec3(0.0, 0.0, 1.0) + block_position_vec3,
-                        glam::vec3(0.0, 1.0, 1.0) + block_position_vec3,
-                        glam::vec3(1.0, 1.0, 1.0) + block_position_vec3,
-                    ]);
+                    block_mesh.add_quad(
+                        [
+                            glam::vec3(1.0, 0.0, 1.0) + block_position_vec3,
+                            glam::vec3(0.0, 0.0, 1.0) + block_position_vec3,
+                            glam::vec3(0.0, 1.0, 1.0) + block_position_vec3,
+                            glam::vec3(1.0, 1.0, 1.0) + block_position_vec3,
+                        ],
+                        WindingDirection::Clockwise,
+                    );
                 }
                 (Direction::South, None) => {
-                    block_mesh.add_quad([
-                        glam::vec3(0.0, 0.0, 0.0) + block_position_vec3,
-                        glam::vec3(1.0, 0.0, 0.0) + block_position_vec3,
-                        glam::vec3(1.0, 1.0, 0.0) + block_position_vec3,
-                        glam::vec3(0.0, 1.0, 0.0) + block_position_vec3,
-                    ]);
+                    block_mesh.add_quad(
+                        [
+                            glam::vec3(0.0, 0.0, 0.0) + block_position_vec3,
+                            glam::vec3(1.0, 0.0, 0.0) + block_position_vec3,
+                            glam::vec3(1.0, 1.0, 0.0) + block_position_vec3,
+                            glam::vec3(0.0, 1.0, 0.0) + block_position_vec3,
+                        ],
+                        WindingDirection::Clockwise,
+                    );
                 }
                 (Direction::East, None) => {
-                    block_mesh.add_quad([
-                        glam::vec3(0.0, 0.0, 1.0) + block_position_vec3,
-                        glam::vec3(0.0, 0.0, 0.0) + block_position_vec3,
-                        glam::vec3(0.0, 1.0, 0.0) + block_position_vec3,
-                        glam::vec3(0.0, 1.0, 1.0) + block_position_vec3,
-                    ]);
+                    block_mesh.add_quad(
+                        [
+                            glam::vec3(0.0, 0.0, 1.0) + block_position_vec3,
+                            glam::vec3(0.0, 0.0, 0.0) + block_position_vec3,
+                            glam::vec3(0.0, 1.0, 0.0) + block_position_vec3,
+                            glam::vec3(0.0, 1.0, 1.0) + block_position_vec3,
+                        ],
+                        WindingDirection::Clockwise,
+                    );
                 }
                 (Direction::West, None) => {
-                    block_mesh.add_quad([
-                        glam::vec3(1.0, 0.0, 0.0) + block_position_vec3,
-                        glam::vec3(1.0, 0.0, 1.0) + block_position_vec3,
-                        glam::vec3(1.0, 1.0, 1.0) + block_position_vec3,
-                        glam::vec3(1.0, 1.0, 0.0) + block_position_vec3,
-                    ]);
+                    block_mesh.add_quad(
+                        [
+                            glam::vec3(1.0, 0.0, 0.0) + block_position_vec3,
+                            glam::vec3(1.0, 0.0, 1.0) + block_position_vec3,
+                            glam::vec3(1.0, 1.0, 1.0) + block_position_vec3,
+                            glam::vec3(1.0, 1.0, 0.0) + block_position_vec3,
+                        ],
+                        WindingDirection::Clockwise,
+                    );
                 }
                 (Direction::Up, None) => {
-                    block_mesh.add_quad([
-                        glam::vec3(0.0, 1.0, 0.0) + block_position_vec3,
-                        glam::vec3(1.0, 1.0, 0.0) + block_position_vec3,
-                        glam::vec3(1.0, 1.0, 1.0) + block_position_vec3,
-                        glam::vec3(0.0, 1.0, 1.0) + block_position_vec3,
-                    ]);
+                    block_mesh.add_quad(
+                        [
+                            glam::vec3(0.0, 1.0, 0.0) + block_position_vec3,
+                            glam::vec3(1.0, 1.0, 0.0) + block_position_vec3,
+                            glam::vec3(1.0, 1.0, 1.0) + block_position_vec3,
+                            glam::vec3(0.0, 1.0, 1.0) + block_position_vec3,
+                        ],
+                        WindingDirection::Clockwise,
+                    );
                 }
                 (Direction::Down, None) => {
-                    block_mesh.add_quad([
-                        glam::vec3(0.0, 0.0, 0.0) + block_position_vec3,
-                        glam::vec3(1.0, 0.0, 0.0) + block_position_vec3,
-                        glam::vec3(1.0, 0.0, 1.0) + block_position_vec3,
-                        glam::vec3(0.0, 0.0, 1.0) + block_position_vec3,
-                    ]);
+                    block_mesh.add_quad(
+                        [
+                            glam::vec3(0.0, 0.0, 0.0) + block_position_vec3,
+                            glam::vec3(1.0, 0.0, 0.0) + block_position_vec3,
+                            glam::vec3(1.0, 0.0, 1.0) + block_position_vec3,
+                            glam::vec3(0.0, 0.0, 1.0) + block_position_vec3,
+                        ],
+                        WindingDirection::CounterClockwise,
+                    );
                 }
                 (_, Some(_)) => {}
             }

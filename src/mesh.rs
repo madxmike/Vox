@@ -1,8 +1,8 @@
 use std::borrow::BorrowMut;
 
-pub enum MeshFaceSide {
-    Front,
-    Back,
+pub enum WindingDirection {
+    Clockwise,
+    CounterClockwise,
 }
 
 pub trait Mesh {
@@ -19,7 +19,7 @@ pub struct RuntimeMesh {
 }
 
 impl RuntimeMesh {
-    pub fn add_quad(&mut self, points: [glam::Vec3; 4]) {
+    pub fn add_quad(&mut self, points: [glam::Vec3; 4], winding_direction: WindingDirection) {
         let num_existing_verticies = self.verticies().len() as u32;
         self.verticies.append(points.to_vec().borrow_mut());
 
@@ -27,18 +27,26 @@ impl RuntimeMesh {
         // TODO (Michael): We can calculate these normals from the verts
         self.normals.push(normal);
 
-        self.indicies.append(
-            [
+        let indicies = match winding_direction {
+            WindingDirection::Clockwise => [
                 num_existing_verticies + 2,
                 num_existing_verticies + 1,
                 num_existing_verticies,
                 num_existing_verticies,
                 num_existing_verticies + 3,
                 num_existing_verticies + 2,
-            ]
-            .to_vec()
-            .borrow_mut(),
-        );
+            ],
+            WindingDirection::CounterClockwise => [
+                num_existing_verticies,
+                num_existing_verticies + 1,
+                num_existing_verticies + 2,
+                num_existing_verticies,
+                num_existing_verticies + 2,
+                num_existing_verticies + 3,
+            ],
+        };
+
+        self.indicies.append(indicies.to_vec().borrow_mut());
     }
 }
 
