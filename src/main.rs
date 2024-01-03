@@ -19,7 +19,7 @@ use sdl2::mouse::MouseButton;
 use sdl2::sys::KeyCode;
 use transform::Transform;
 use vulkan_renderer::VulkanRenderer;
-use world::world_generation_system;
+use world::{chunk, world_generation_system};
 
 fn main() {
     let sdl_context = sdl2::init().unwrap();
@@ -41,7 +41,7 @@ fn main() {
     let mut camera = Camera {
         transform: Transform {
             position: glam::vec3(0.0, 0.0, 3.0),
-            rotation: glam::Quat::from_euler(glam::EulerRot::XYZ, 0.0 * PI / 180.0, 0.0, 0.0),
+            rotation: glam::Quat::from_euler(glam::EulerRot::XYZ, 34.7 * PI / 180.0, 0.0, 0.0),
         },
         near_clipping_plane: 0.01,
         far_clipping_plane: 100.0,
@@ -57,7 +57,11 @@ fn main() {
     let mut delta_time = 0.0;
 
     let camera_movement_speed = 5.0;
-    let chunk_mesh = world.chunks[0].build_chunk_mesh();
+    let chunk_meshes = world
+        .chunks
+        .iter()
+        .take(1)
+        .map(|(position, chunk)| chunk.build_chunk_mesh());
     'running: loop {
         for event in event_pump.poll_iter() {
             match event {
@@ -110,7 +114,9 @@ fn main() {
 
         last_render_tick_time = current_render_tick_time;
 
-        vulkan_renderer.render(&camera, chunk_mesh.clone());
+        chunk_meshes
+            .clone()
+            .for_each(|mesh| vulkan_renderer.render(&camera, mesh.clone()));
         current_render_tick_time = timer_subsystem.performance_counter();
 
         delta_time = ((current_render_tick_time - last_render_tick_time) as f32)
