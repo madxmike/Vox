@@ -6,9 +6,9 @@ use crate::{
 
 use super::{block::Block, block_position::BlockPosition};
 
-pub const CHUNK_BLOCK_WIDTH: usize = 15;
-pub const CHUNK_BLOCK_HEIGHT: usize = 15;
-pub const CHUNK_BLOCK_DEPTH: usize = 15;
+pub const CHUNK_BLOCK_WIDTH: usize = 16;
+pub const CHUNK_BLOCK_HEIGHT: usize = 16;
+pub const CHUNK_BLOCK_DEPTH: usize = 16;
 const CHUNK_SIZE: usize = CHUNK_BLOCK_WIDTH * CHUNK_BLOCK_HEIGHT * CHUNK_BLOCK_DEPTH;
 
 pub enum ChunkAccessorError {
@@ -27,55 +27,25 @@ impl Chunk {
             blocks: [None; CHUNK_SIZE],
         };
 
-        let mut skip = false;
         for i in 0..CHUNK_SIZE {
-            if skip {
-                skip = false;
-                continue;
-            }
-
-            chunk.blocks[i] = Some(Block::default());
-            skip = true;
+            chunk.blocks[i] = Some(Block {
+                id: i as u16,
+                state: 0,
+            })
         }
         chunk
+    }
+
+    pub fn blocks(&self) -> &[Option<Block>] {
+        &self.blocks
+    }
+
+    pub fn origin_position(&self) -> BlockPosition {
+        self.origin_position
     }
 }
 
 impl Chunk {
-    // TODO (Michael): Move this type of logic to WorldRenderSystem
-    // pub fn build_chunk_mesh(&self) -> StitchedMesh {
-    //     let mut stiched_mesh = StitchedMesh::default();
-
-    //     for (i, block) in self.blocks.iter().enumerate() {
-    //         if let None = block {
-    //             continue;
-    //         }
-    //         let local_block_position = self.world_block_position(i);
-
-    //         let mesh_verticies: Vec<[f32; 3]> = CUBE_MESH
-    //             .verticies()
-    //             .iter()
-    //             .map(|vertex| {
-    //                 [
-    //                     vertex[0] + local_block_position.x as f32,
-    //                     vertex[1] + local_block_position.y as f32,
-    //                     vertex[2] + local_block_position.z as f32,
-    //                 ]
-    //             })
-    //             .collect();
-
-    //         let cube_mesh = RuntimeMesh {
-    //             verticies: mesh_verticies,
-    //             normals: CUBE_MESH.normals().to_vec(),
-    //             indicies: CUBE_MESH.indicies().to_vec(),
-    //         };
-
-    //         stiched_mesh.stich(cube_mesh);
-    //     }
-
-    //     stiched_mesh
-    // }
-
     fn local_block_position(block_index: usize) -> BlockPosition {
         let local_z = block_index / (CHUNK_BLOCK_WIDTH * CHUNK_BLOCK_HEIGHT);
         let block_index = block_index - (local_z * CHUNK_BLOCK_WIDTH * CHUNK_BLOCK_HEIGHT);
@@ -104,9 +74,9 @@ impl Chunk {
 
         let chunk_local_position = world_position.to_chunk_local_position();
 
-        let position_idx = (chunk_local_position.x
-            + (chunk_local_position.y * CHUNK_BLOCK_WIDTH as i32)
-            + (chunk_local_position.z * CHUNK_BLOCK_WIDTH as i32 * CHUNK_BLOCK_HEIGHT as i32))
+        let position_idx = (chunk_local_position.x.abs()
+            + (chunk_local_position.y.abs() * CHUNK_BLOCK_WIDTH as i32)
+            + (chunk_local_position.z.abs() * CHUNK_BLOCK_WIDTH as i32 * CHUNK_BLOCK_HEIGHT as i32))
             as usize;
 
         Ok(self.blocks[position_idx])

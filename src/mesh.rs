@@ -1,5 +1,10 @@
 use std::borrow::BorrowMut;
 
+pub enum MeshFaceSide {
+    Front,
+    Back,
+}
+
 pub trait Mesh {
     fn verticies(&self) -> &[glam::Vec3];
     fn normals(&self) -> &[glam::Vec3];
@@ -15,29 +20,21 @@ pub struct RuntimeMesh {
 
 impl RuntimeMesh {
     pub fn add_quad(&mut self, points: [glam::Vec3; 4]) {
+        let num_existing_verticies = self.verticies().len() as u32;
         self.verticies.append(points.to_vec().borrow_mut());
 
+        let normal = (points[1] - points[0]).cross(points[2] - points[0]);
         // TODO (Michael): We can calculate these normals from the verts
-        self.normals.append(
-            [
-                glam::vec3(0.0, 0.0, 0.0),
-                glam::vec3(0.0, 0.0, 0.0),
-                glam::vec3(0.0, 0.0, 0.0),
-                glam::vec3(0.0, 0.0, 0.0),
-            ]
-            .to_vec()
-            .borrow_mut(),
-        );
+        self.normals.push(normal);
 
-        let num_existing_indicies = self.indicies.len() as u32;
         self.indicies.append(
             [
-                num_existing_indicies + 2,
-                num_existing_indicies + 1,
-                num_existing_indicies,
-                num_existing_indicies,
-                num_existing_indicies + 3,
-                num_existing_indicies + 2,
+                num_existing_verticies + 2,
+                num_existing_verticies + 1,
+                num_existing_verticies,
+                num_existing_verticies,
+                num_existing_verticies + 3,
+                num_existing_verticies + 2,
             ]
             .to_vec()
             .borrow_mut(),
@@ -71,7 +68,7 @@ pub struct StitchedMesh {
 }
 
 impl StitchedMesh {
-    pub fn stich(&mut self, mesh: &Box<dyn Mesh>) {
+    pub fn stich(&mut self, mesh: &impl Mesh) {
         let num_existing_verticies = self.verticies.len();
 
         let mesh_verticies = mesh.verticies();
@@ -82,7 +79,6 @@ impl StitchedMesh {
         let stiched_normals: &mut Vec<glam::Vec3> = &mut self.normals;
         stiched_normals.append(&mut mesh.normals().to_vec());
 
-        dbg!(mesh.verticies());
         // Move all the indicies up by the exisiting vertex count before stitching.
         // This is to ensure that the index will still refer to the same vertex
         // once everything is added together. I.e. if there are 30 existing verticies

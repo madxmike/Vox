@@ -1,4 +1,3 @@
-
 enum StateFlags {
     Solid,
     Rotation,
@@ -24,10 +23,10 @@ impl StateFlags {
     }
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct Block {
-    id: u16,
-    state: u32,
+    pub id: u16,
+    pub state: u32,
 }
 
 impl Block {

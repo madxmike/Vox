@@ -11,7 +11,13 @@ use crate::{
     renderer::Renderer,
 };
 
-use super::{block_position::BlockPosition, chunk::Chunk, world::World};
+use super::{
+    block::{self, Block},
+    block_position::{self, BlockPosition},
+    chunk::{Chunk, CHUNK_BLOCK_DEPTH, CHUNK_BLOCK_HEIGHT, CHUNK_BLOCK_WIDTH},
+    direction::Direction,
+    world::World,
+};
 
 #[derive(Debug)]
 pub enum WorldRenderError {
@@ -20,7 +26,7 @@ pub enum WorldRenderError {
 
 #[derive(Default)]
 pub struct WorldRenderSystem {
-    chunk_mesh_cache: HashMap<BlockPosition, Box<dyn Mesh>>,
+    chunk_mesh_cache: HashMap<BlockPosition, StitchedMesh>,
 }
 
 impl WorldRenderSystem {
@@ -42,7 +48,7 @@ impl WorldRenderSystem {
         for (chunk_position, chunk) in &world.chunks {
             if let None = self.chunk_mesh_cache.get(chunk_position) {
                 self.chunk_mesh_cache
-                    .insert(chunk_position.clone(), self.build_chunk_mesh(world));
+                    .insert(chunk_position.clone(), self.build_chunk_mesh(world, chunk));
             }
 
             let chunk_mesh = self.chunk_mesh_cache.get(chunk_position).unwrap();
@@ -53,15 +59,92 @@ impl WorldRenderSystem {
         Ok(Box::new(terrain_mesh))
     }
 
-    fn build_chunk_mesh(&self, world: &World) -> Box<dyn Mesh> {
-        dbg!("building chunk mesh!");
-        let mut runtime_mesh = RuntimeMesh::default();
-        runtime_mesh.add_quad([
-            glam::vec3(1.0, 0.0, 1.0),
-            glam::vec3(0.0, 0.0, 1.0),
-            glam::vec3(0.0, 1.0, 1.0),
-            glam::vec3(1.0, 1.0, 1.0),
-        ]);
-        Box::new(runtime_mesh)
+    fn build_chunk_mesh(&self, world: &World, chunk: &Chunk) -> StitchedMesh {
+        let mut chunk_mesh = StitchedMesh::default();
+
+        let origin_position = chunk.origin_position();
+
+        for x in 0..CHUNK_BLOCK_WIDTH {
+            for y in 0..CHUNK_BLOCK_HEIGHT {
+                for z in 0..CHUNK_BLOCK_DEPTH {
+                    let block_position = origin_position.offset(x as i32, y as i32, z as i32);
+                    let block_mesh = self.build_block_mesh(world, block_position);
+                    if let None = block_mesh {
+                        continue;
+                    }
+                    chunk_mesh.stich(&block_mesh.unwrap());
+                }
+            }
+        }
+
+        chunk_mesh
+    }
+
+    fn build_block_mesh(
+        &self,
+        world: &World,
+        block_position: BlockPosition,
+    ) -> Option<RuntimeMesh> {
+        if let None = world.get_block_at_position(block_position) {
+            return None;
+        }
+        let neighbors = world.get_neighbors(block_position);
+        let mut block_mesh = RuntimeMesh::default();
+        let block_position_vec3 = block_position.to_vec3();
+        for (direction, neighbor) in neighbors.iter() {
+            match (direction, neighbor) {
+                (Direction::North, None) => {
+                    block_mesh.add_quad([
+                        glam::vec3(1.0, 0.0, 1.0) + block_position_vec3,
+                        glam::vec3(0.0, 0.0, 1.0) + block_position_vec3,
+                        glam::vec3(0.0, 1.0, 1.0) + block_position_vec3,
+                        glam::vec3(1.0, 1.0, 1.0) + block_position_vec3,
+                    ]);
+                }
+                (Direction::South, None) => {
+                    block_mesh.add_quad([
+                        glam::vec3(0.0, 0.0, 0.0) + block_position_vec3,
+                        glam::vec3(1.0, 0.0, 0.0) + block_position_vec3,
+                        glam::vec3(1.0, 1.0, 0.0) + block_position_vec3,
+                        glam::vec3(0.0, 1.0, 0.0) + block_position_vec3,
+                    ]);
+                }
+                (Direction::East, None) => {
+                    block_mesh.add_quad([
+                        glam::vec3(0.0, 0.0, 1.0) + block_position_vec3,
+                        glam::vec3(0.0, 0.0, 0.0) + block_position_vec3,
+                        glam::vec3(0.0, 1.0, 0.0) + block_position_vec3,
+                        glam::vec3(0.0, 1.0, 1.0) + block_position_vec3,
+                    ]);
+                }
+                (Direction::West, None) => {
+                    block_mesh.add_quad([
+                        glam::vec3(1.0, 0.0, 0.0) + block_position_vec3,
+                        glam::vec3(1.0, 0.0, 1.0) + block_position_vec3,
+                        glam::vec3(1.0, 1.0, 1.0) + block_position_vec3,
+                        glam::vec3(1.0, 1.0, 0.0) + block_position_vec3,
+                    ]);
+                }
+                (Direction::Up, None) => {
+                    block_mesh.add_quad([
+                        glam::vec3(0.0, 1.0, 0.0) + block_position_vec3,
+                        glam::vec3(1.0, 1.0, 0.0) + block_position_vec3,
+                        glam::vec3(1.0, 1.0, 1.0) + block_position_vec3,
+                        glam::vec3(0.0, 1.0, 1.0) + block_position_vec3,
+                    ]);
+                }
+                (Direction::Down, None) => {
+                    block_mesh.add_quad([
+                        glam::vec3(0.0, 0.0, 0.0) + block_position_vec3,
+                        glam::vec3(1.0, 0.0, 0.0) + block_position_vec3,
+                        glam::vec3(1.0, 0.0, 1.0) + block_position_vec3,
+                        glam::vec3(0.0, 0.0, 1.0) + block_position_vec3,
+                    ]);
+                }
+                (_, Some(_)) => {}
+            }
+        }
+
+        Some(block_mesh)
     }
 }

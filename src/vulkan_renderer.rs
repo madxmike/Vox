@@ -530,14 +530,11 @@ fn create_command_buffers(
     let mesh_normals = mesh.normals();
 
     let mut verticies: Vec<DefaultLitVertex> = vec![];
+    let normal_idx = 0;
     for i in 0..mesh.verticies().len() {
         verticies.push(DefaultLitVertex {
-            position: [
-                mesh_verticies[i].x,
-                mesh_verticies[i].y,
-                mesh_verticies[i].z,
-            ],
-            normal: [mesh_normals[i].x, mesh_normals[i].y, mesh_normals[i].z],
+            position: mesh_verticies[i].to_array(),
+            normal: mesh_normals[i / 4].to_array(),
         });
     }
 

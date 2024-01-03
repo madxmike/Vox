@@ -56,7 +56,7 @@ fn main() {
     let mut last_render_tick_time = current_render_tick_time.clone();
     let mut delta_time = 0.0;
 
-    let camera_movement_speed = 5.0;
+    let camera_movement_speed = 20.0;
     let mut world_render_system = WorldRenderSystem::default();
     'running: loop {
         for event in event_pump.poll_iter() {
@@ -104,6 +104,26 @@ fn main() {
                 } => {
                     camera.transform.position.y -= camera_movement_speed * delta_time;
                 }
+                Event::KeyDown {
+                    keycode: Some(Keycode::Minus),
+                    ..
+                } => {
+                    let eurler = camera.transform.rotation.to_euler(glam::EulerRot::XYZ);
+                    camera.transform.rotation = glam::Quat::from_euler(
+                        glam::EulerRot::XYZ,
+                        eurler.0,
+                        eurler.1 + PI,
+                        eurler.2,
+                    );
+                }
+                Event::KeyDown {
+                    keycode: Some(Keycode::Plus),
+                    ..
+                } => {
+                    let eurler = camera.transform.rotation.to_euler(glam::EulerRot::XYZ);
+                    camera.transform.rotation =
+                        glam::Quat::from_euler(glam::EulerRot::XYZ, -eurler.0, eurler.1, eurler.2);
+                }
                 _ => {}
             }
         }
@@ -117,6 +137,8 @@ fn main() {
 
         delta_time = ((current_render_tick_time - last_render_tick_time) as f32)
             / timer_subsystem.performance_frequency() as f32;
+
+        dbg!(delta_time);
 
         ::std::thread::sleep(::std::time::Duration::new(0, 1_000_000_000u32 / 60));
     }

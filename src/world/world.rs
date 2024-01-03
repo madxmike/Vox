@@ -6,6 +6,7 @@ use super::{
     block::Block,
     block_position::BlockPosition,
     chunk::{self, Chunk, CHUNK_BLOCK_WIDTH},
+    direction::Direction,
 };
 
 pub struct World {
@@ -22,5 +23,37 @@ impl World {
         self.chunks
             .get(&position.to_chunk_origin())
             .and_then(|chunk| chunk.get_block_at_position(position).unwrap_or(None))
+    }
+
+    /// Gets the 6 neighbor blocks of a block at the position.
+    /// If a block is air, the neighbor block will be [None].
+    /// This will always be in [Direction] order.
+    pub fn get_neighbors(&self, position: BlockPosition) -> Vec<(Direction, Option<Block>)> {
+        vec![
+            (
+                Direction::North,
+                self.get_block_at_position(position.offset(0, 0, 1)),
+            ),
+            (
+                Direction::South,
+                self.get_block_at_position(position.offset(0, 0, -1)),
+            ),
+            (
+                Direction::East,
+                self.get_block_at_position(position.offset(-1, 0, 0)),
+            ),
+            (
+                Direction::West,
+                self.get_block_at_position(position.offset(1, 0, 0)),
+            ),
+            (
+                Direction::Up,
+                self.get_block_at_position(position.offset(0, 1, 0)),
+            ),
+            (
+                Direction::Down,
+                self.get_block_at_position(position.offset(0, -1, 0)),
+            ),
+        ]
     }
 }
