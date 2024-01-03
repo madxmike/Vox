@@ -1,5 +1,5 @@
 use crate::{
-    cube_mesh::{self, CUBE_MESH},
+    cube_mesh::{self},
     mesh::{Mesh, RuntimeMesh, StitchedMesh},
     transform::Position,
 };
@@ -43,38 +43,38 @@ impl Chunk {
 
 impl Chunk {
     // TODO (Michael): Move this type of logic to WorldRenderSystem
-    pub fn build_chunk_mesh(&self) -> StitchedMesh {
-        let mut stiched_mesh = StitchedMesh::default();
+    // pub fn build_chunk_mesh(&self) -> StitchedMesh {
+    //     let mut stiched_mesh = StitchedMesh::default();
 
-        for (i, block) in self.blocks.iter().enumerate() {
-            if let None = block {
-                continue;
-            }
-            let local_block_position = self.world_block_position(i);
+    //     for (i, block) in self.blocks.iter().enumerate() {
+    //         if let None = block {
+    //             continue;
+    //         }
+    //         let local_block_position = self.world_block_position(i);
 
-            let mesh_verticies: Vec<[f32; 3]> = CUBE_MESH
-                .verticies()
-                .iter()
-                .map(|vertex| {
-                    [
-                        vertex[0] + local_block_position.x as f32,
-                        vertex[1] + local_block_position.y as f32,
-                        vertex[2] + local_block_position.z as f32,
-                    ]
-                })
-                .collect();
+    //         let mesh_verticies: Vec<[f32; 3]> = CUBE_MESH
+    //             .verticies()
+    //             .iter()
+    //             .map(|vertex| {
+    //                 [
+    //                     vertex[0] + local_block_position.x as f32,
+    //                     vertex[1] + local_block_position.y as f32,
+    //                     vertex[2] + local_block_position.z as f32,
+    //                 ]
+    //             })
+    //             .collect();
 
-            let cube_mesh = RuntimeMesh {
-                verticies: mesh_verticies,
-                normals: CUBE_MESH.normals().to_vec(),
-                indicies: CUBE_MESH.indicies().to_vec(),
-            };
+    //         let cube_mesh = RuntimeMesh {
+    //             verticies: mesh_verticies,
+    //             normals: CUBE_MESH.normals().to_vec(),
+    //             indicies: CUBE_MESH.indicies().to_vec(),
+    //         };
 
-            stiched_mesh.stich(cube_mesh);
-        }
+    //         stiched_mesh.stich(cube_mesh);
+    //     }
 
-        stiched_mesh
-    }
+    //     stiched_mesh
+    // }
 
     fn local_block_position(block_index: usize) -> BlockPosition {
         let local_z = block_index / (CHUNK_BLOCK_WIDTH * CHUNK_BLOCK_HEIGHT);

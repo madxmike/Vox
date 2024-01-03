@@ -53,8 +53,7 @@ use vulkano::{
 
 use crate::{
     camera::Camera,
-    cube_mesh::CUBE_MESH,
-    mesh::{Mesh, StaticMesh},
+    mesh::Mesh,
     renderer::Renderer,
     shaders::{
         self,
@@ -533,8 +532,12 @@ fn create_command_buffers(
     let mut verticies: Vec<DefaultLitVertex> = vec![];
     for i in 0..mesh.verticies().len() {
         verticies.push(DefaultLitVertex {
-            position: mesh_verticies[i].clone(),
-            normal: mesh_normals[i].clone(),
+            position: [
+                mesh_verticies[i].x,
+                mesh_verticies[i].y,
+                mesh_verticies[i].z,
+            ],
+            normal: [mesh_normals[i].x, mesh_normals[i].y, mesh_normals[i].z],
         });
     }
 

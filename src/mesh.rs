@@ -1,47 +1,56 @@
 use std::borrow::BorrowMut;
 
 pub trait Mesh {
-    fn verticies(&self) -> &[[f32; 3]];
-    fn normals(&self) -> &[[f32; 3]];
+    fn verticies(&self) -> &[glam::Vec3];
+    fn normals(&self) -> &[glam::Vec3];
     fn indicies(&self) -> &[u32];
 }
 
-#[derive(Clone, Copy)]
-pub struct StaticMesh<const VERTICIES_COUNT: usize, const INDICIES_COUNT: usize> {
-    pub verticies: [[f32; 3]; VERTICIES_COUNT],
-    pub normals: [[f32; 3]; VERTICIES_COUNT],
-    pub indicies: [u32; INDICIES_COUNT],
-}
-
-impl<const VERTICIES_COUNT: usize, const INDICIES_COUNT: usize> Mesh
-    for StaticMesh<VERTICIES_COUNT, INDICIES_COUNT>
-{
-    fn verticies(&self) -> &[[f32; 3]] {
-        &self.verticies
-    }
-
-    fn normals(&self) -> &[[f32; 3]] {
-        &self.normals
-    }
-
-    fn indicies(&self) -> &[u32] {
-        &self.indicies
-    }
-}
-
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct RuntimeMesh {
-    pub verticies: Vec<[f32; 3]>,
-    pub normals: Vec<[f32; 3]>,
+    pub verticies: Vec<glam::Vec3>,
+    pub normals: Vec<glam::Vec3>,
     pub indicies: Vec<u32>,
 }
 
+impl RuntimeMesh {
+    pub fn add_quad(&mut self, points: [glam::Vec3; 4]) {
+        self.verticies.append(points.to_vec().borrow_mut());
+
+        // TODO (Michael): We can calculate these normals from the verts
+        self.normals.append(
+            [
+                glam::vec3(0.0, 0.0, 0.0),
+                glam::vec3(0.0, 0.0, 0.0),
+                glam::vec3(0.0, 0.0, 0.0),
+                glam::vec3(0.0, 0.0, 0.0),
+            ]
+            .to_vec()
+            .borrow_mut(),
+        );
+
+        let num_existing_indicies = self.indicies.len() as u32;
+        self.indicies.append(
+            [
+                num_existing_indicies + 2,
+                num_existing_indicies + 1,
+                num_existing_indicies,
+                num_existing_indicies,
+                num_existing_indicies + 3,
+                num_existing_indicies + 2,
+            ]
+            .to_vec()
+            .borrow_mut(),
+        );
+    }
+}
+
 impl Mesh for RuntimeMesh {
-    fn verticies(&self) -> &[[f32; 3]] {
+    fn verticies(&self) -> &[glam::Vec3] {
         &self.verticies
     }
 
-    fn normals(&self) -> &[[f32; 3]] {
+    fn normals(&self) -> &[glam::Vec3] {
         &self.normals
     }
 
@@ -56,23 +65,24 @@ impl Mesh for RuntimeMesh {
 /// This does not try to do any combining of faces or other deduplication logic.
 #[derive(Default, Clone)]
 pub struct StitchedMesh {
-    pub verticies: Vec<[f32; 3]>,
-    pub normals: Vec<[f32; 3]>,
+    pub verticies: Vec<glam::Vec3>,
+    pub normals: Vec<glam::Vec3>,
     pub indicies: Vec<u32>,
 }
 
 impl StitchedMesh {
-    pub fn stich(&mut self, mesh: impl Mesh) {
+    pub fn stich(&mut self, mesh: &Box<dyn Mesh>) {
         let num_existing_verticies = self.verticies.len();
 
         let mesh_verticies = mesh.verticies();
 
-        let stiched_verticies: &mut Vec<[f32; 3]> = &mut self.verticies;
+        let stiched_verticies: &mut Vec<glam::Vec3> = &mut self.verticies;
         stiched_verticies.append(&mut mesh_verticies.to_vec());
 
-        let stiched_normals: &mut Vec<[f32; 3]> = &mut self.normals;
+        let stiched_normals: &mut Vec<glam::Vec3> = &mut self.normals;
         stiched_normals.append(&mut mesh.normals().to_vec());
 
+        dbg!(mesh.verticies());
         // Move all the indicies up by the exisiting vertex count before stitching.
         // This is to ensure that the index will still refer to the same vertex
         // once everything is added together. I.e. if there are 30 existing verticies
@@ -89,11 +99,11 @@ impl StitchedMesh {
 }
 
 impl Mesh for StitchedMesh {
-    fn verticies(&self) -> &[[f32; 3]] {
+    fn verticies(&self) -> &[glam::Vec3] {
         &self.verticies
     }
 
-    fn normals(&self) -> &[[f32; 3]] {
+    fn normals(&self) -> &[glam::Vec3] {
         &self.normals
     }
 
