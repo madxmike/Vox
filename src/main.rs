@@ -4,22 +4,21 @@ mod mesh;
 mod renderer;
 mod shaders;
 mod transform;
-mod vulkan_renderer;
 mod world;
-
 use std::f32::consts::PI;
 use std::time::SystemTime;
 
 use camera::Camera;
-use renderer::Renderer;
-use sdl2::event::Event;
+use renderer::renderer::Renderer;
+use renderer::vulkan::vulkan_renderer::VulkanRenderer;
+use renderer::world_render_system::WorldRenderSystem;
+use sdl2::event::{self, Event};
 use sdl2::keyboard::Keycode;
 
 use sdl2::mouse::MouseButton;
 use sdl2::sys::KeyCode;
 use transform::Transform;
-use vulkan_renderer::VulkanRenderer;
-use world::{chunk, world_generation_system, world_render_system::WorldRenderSystem};
+use world::{chunk, world_generation_system};
 
 fn main() {
     let sdl_context = sdl2::init().unwrap();
@@ -117,13 +116,20 @@ fn main() {
                     );
                 }
                 Event::KeyDown {
-                    keycode: Some(Keycode::Plus),
+                    keycode: Some(Keycode::KpPlus),
                     ..
                 } => {
                     let eurler = camera.transform.rotation.to_euler(glam::EulerRot::XYZ);
                     camera.transform.rotation =
                         glam::Quat::from_euler(glam::EulerRot::XYZ, -eurler.0, eurler.1, eurler.2);
                 }
+                Event::KeyDown {
+                    keycode: Some(Keycode::KpEnter),
+                    ..
+                } => {
+                    camera.transform.position = glam::Vec3::default();
+                }
+
                 _ => {}
             }
         }

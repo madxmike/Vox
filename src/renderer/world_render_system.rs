@@ -7,17 +7,15 @@ use std::{
 
 use crate::{
     camera::Camera,
+    chunk::{Chunk, CHUNK_BLOCK_DEPTH, CHUNK_BLOCK_HEIGHT, CHUNK_BLOCK_WIDTH},
     mesh::{Mesh, RuntimeMesh, StitchedMesh, WindingDirection},
-    renderer::Renderer,
+    world::block::{self, Block},
+    world::block_position::{self, BlockPosition},
+    world::direction::Direction,
+    world::world::World,
 };
 
-use super::{
-    block::{self, Block},
-    block_position::{self, BlockPosition},
-    chunk::{Chunk, CHUNK_BLOCK_DEPTH, CHUNK_BLOCK_HEIGHT, CHUNK_BLOCK_WIDTH},
-    direction::Direction,
-    world::World,
-};
+use super::renderer::{self, Renderer};
 
 #[derive(Debug)]
 pub enum WorldRenderError {
