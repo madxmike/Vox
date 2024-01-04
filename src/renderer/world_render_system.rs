@@ -1,17 +1,15 @@
-use std::{
-    collections::HashMap,
-};
+use std::collections::HashMap;
 
 use crate::{
     camera::Camera,
     chunk::{Chunk, CHUNK_BLOCK_DEPTH, CHUNK_BLOCK_HEIGHT, CHUNK_BLOCK_WIDTH},
     mesh::{Mesh, RuntimeMesh, StitchedMesh, WindingDirection},
-    world::block_position::{BlockPosition},
+    world::block_position::BlockPosition,
     world::direction::Direction,
     world::world::World,
 };
 
-use super::renderer::{Renderer};
+use super::renderer::Renderer;
 
 #[derive(Debug)]
 pub enum WorldRenderError {
@@ -32,7 +30,7 @@ impl WorldRenderSystem {
     ) -> Result<(), WorldRenderError> {
         let terrain_mesh = self.build_terrain_mesh(world)?;
 
-        renderer.as_mut().render(camera, terrain_mesh);
+        renderer.as_mut().default_lit(camera, terrain_mesh);
 
         Ok(())
     }
