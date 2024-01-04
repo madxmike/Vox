@@ -72,14 +72,7 @@ pub struct DefaultLitIndex {
 }
 
 pub struct DefaultLitPipeline {
-    vs: EntryPoint,
-    fs: EntryPoint,
-    viewport: Viewport,
-    vertex_input_state: VertexInputState,
     layout: Arc<PipelineLayout>,
-
-    render_pass: Arc<RenderPass>,
-    subpass: Subpass,
     graphics_pipeline: Arc<GraphicsPipeline>,
     framebuffers: Vec<Arc<Framebuffer>>,
 }
@@ -158,15 +151,9 @@ impl DefaultLitPipeline {
         .unwrap();
 
         Ok(DefaultLitPipeline {
-            vs,
-            fs,
-            viewport,
-            vertex_input_state,
             layout,
-            render_pass,
-            subpass,
             graphics_pipeline,
-            framebuffers: framebuffers,
+            framebuffers,
         })
     }
 

@@ -117,7 +117,7 @@ impl VulkanRenderer {
             ))
         };
 
-        let (physical_device, logical_device, mut queues) = create_devices(
+        let (physical_device, logical_device, mut queues) = VulkanRenderer::create_devices(
             &vulkan_instance,
             &vulkan_surface,
             REQUIRED_DEVICE_EXTENSIONS,
@@ -169,8 +169,35 @@ impl VulkanRenderer {
         vulkan_surface: &Arc<Surface>,
         extent: [f32; 2],
     ) -> (Arc<Swapchain>, Vec<Arc<Image>>, Pipelines) {
-        let (swapchain, swapchain_images) =
-            create_swapchain(physical_device, device, vulkan_surface).unwrap();
+        let capabilities = physical_device
+            .surface_capabilities(vulkan_surface, Default::default())
+            .unwrap();
+
+        let surface_formats = physical_device
+            .surface_formats(vulkan_surface, Default::default())
+            .unwrap();
+        let (image_format, color_space) = surface_formats.get(0).unwrap();
+
+        let (swapchain, swapchain_images) = Swapchain::new(
+            device.clone(),
+            vulkan_surface.clone(),
+            SwapchainCreateInfo {
+                min_image_count: capabilities.min_image_count,
+                image_format: image_format.to_owned(),
+                image_color_space: color_space.to_owned(),
+                image_extent: capabilities.max_image_extent,
+                image_array_layers: capabilities.max_image_array_layers,
+                image_usage: capabilities.supported_usage_flags,
+                composite_alpha: capabilities
+                    .supported_composite_alpha
+                    .into_iter()
+                    .next()
+                    .unwrap()
+                    .to_owned(),
+                ..Default::default()
+            },
+        )
+        .unwrap();
 
         let default_lit_pipeline =
             DefaultLitPipeline::new(device, &swapchain, &swapchain_images, extent).unwrap();
@@ -180,6 +207,68 @@ impl VulkanRenderer {
         };
 
         (swapchain, swapchain_images, pipelines)
+    }
+
+    fn create_devices(
+        vulkan_instance: &Arc<Instance>,
+        vulkan_surface: &Arc<Surface>,
+        required_device_extensions: DeviceExtensions,
+    ) -> Result<
+        (
+            Arc<PhysicalDevice>,
+            Arc<Device>,
+            Box<dyn ExactSizeIterator<Item = Arc<Queue>>>,
+        ),
+        Validated<vulkano::VulkanError>,
+    > {
+        let (physical_device, queue_family_index) = vulkan_instance
+            .enumerate_physical_devices()?
+            .filter(|physical_device| {
+                physical_device
+                    .supported_extensions()
+                    .contains(&required_device_extensions)
+            })
+            .filter_map(|physical_device| {
+                physical_device
+                    .queue_family_properties()
+                    .iter()
+                    .enumerate()
+                    .position(|(i, q)| {
+                        q.queue_flags.contains(QueueFlags::GRAPHICS)
+                            && physical_device
+                                .surface_support(i as u32, vulkan_surface)
+                                .unwrap_or(false)
+                    })
+                    .map(|q| (physical_device, q as u32))
+            })
+            .min_by_key(
+                |(physical_device, _)| match physical_device.properties().device_type {
+                    PhysicalDeviceType::DiscreteGpu => 0,
+                    PhysicalDeviceType::IntegratedGpu => 1,
+                    PhysicalDeviceType::VirtualGpu => 2,
+                    PhysicalDeviceType::Cpu => 3,
+
+                    // Note that there exists `PhysicalDeviceType::Other`, however,
+                    // `PhysicalDeviceType` is a non-exhaustive enum. Thus, one should
+                    // match wildcard `_` to catch all unknown device types.
+                    _ => 4,
+                },
+            )
+            .ok_or(vulkano::VulkanError::ExtensionNotPresent)?;
+
+        let (logical_device, queues) = Device::new(
+            physical_device.clone(),
+            DeviceCreateInfo {
+                queue_create_infos: vec![QueueCreateInfo {
+                    queue_family_index,
+                    ..Default::default()
+                }],
+                enabled_extensions: required_device_extensions,
+                ..Default::default()
+            },
+        )?;
+
+        Ok((physical_device, logical_device, Box::new(queues)))
     }
 }
 
@@ -297,99 +386,4 @@ impl Renderer for VulkanRenderer {
             .then_signal_fence_and_flush()
             .unwrap();
     }
-}
-
-fn create_swapchain(
-    physical_device: &Arc<PhysicalDevice>,
-    logical_device: &Arc<Device>,
-    surface: &Arc<Surface>,
-) -> Result<(Arc<Swapchain>, Vec<Arc<Image>>), Validated<vulkano::VulkanError>> {
-    let capabilities = physical_device.surface_capabilities(surface, Default::default())?;
-
-    let surface_formats = physical_device.surface_formats(surface, Default::default())?;
-    let (image_format, color_space) = surface_formats.get(0).unwrap();
-
-    let (swapchain, images) = Swapchain::new(
-        logical_device.clone(),
-        surface.clone(),
-        SwapchainCreateInfo {
-            min_image_count: capabilities.min_image_count,
-            image_format: image_format.to_owned(),
-            image_color_space: color_space.to_owned(),
-            image_extent: capabilities.max_image_extent,
-            image_array_layers: capabilities.max_image_array_layers,
-            image_usage: capabilities.supported_usage_flags,
-            composite_alpha: capabilities
-                .supported_composite_alpha
-                .into_iter()
-                .next()
-                .unwrap()
-                .to_owned(),
-            ..Default::default()
-        },
-    )?;
-
-    Ok((swapchain, images))
-}
-
-fn create_devices(
-    vulkan_instance: &Arc<Instance>,
-    vulkan_surface: &Arc<Surface>,
-    required_device_extensions: DeviceExtensions,
-) -> Result<
-    (
-        Arc<PhysicalDevice>,
-        Arc<Device>,
-        Box<dyn ExactSizeIterator<Item = Arc<Queue>>>,
-    ),
-    Validated<vulkano::VulkanError>,
-> {
-    let (physical_device, queue_family_index) = vulkan_instance
-        .enumerate_physical_devices()?
-        .filter(|physical_device| {
-            physical_device
-                .supported_extensions()
-                .contains(&required_device_extensions)
-        })
-        .filter_map(|physical_device| {
-            physical_device
-                .queue_family_properties()
-                .iter()
-                .enumerate()
-                .position(|(i, q)| {
-                    q.queue_flags.contains(QueueFlags::GRAPHICS)
-                        && physical_device
-                            .surface_support(i as u32, vulkan_surface)
-                            .unwrap_or(false)
-                })
-                .map(|q| (physical_device, q as u32))
-        })
-        .min_by_key(
-            |(physical_device, _)| match physical_device.properties().device_type {
-                PhysicalDeviceType::DiscreteGpu => 0,
-                PhysicalDeviceType::IntegratedGpu => 1,
-                PhysicalDeviceType::VirtualGpu => 2,
-                PhysicalDeviceType::Cpu => 3,
-
-                // Note that there exists `PhysicalDeviceType::Other`, however,
-                // `PhysicalDeviceType` is a non-exhaustive enum. Thus, one should
-                // match wildcard `_` to catch all unknown device types.
-                _ => 4,
-            },
-        )
-        .ok_or(vulkano::VulkanError::ExtensionNotPresent)?;
-
-    let (logical_device, queues) = Device::new(
-        physical_device.clone(),
-        DeviceCreateInfo {
-            queue_create_infos: vec![QueueCreateInfo {
-                queue_family_index,
-                ..Default::default()
-            }],
-            enabled_extensions: required_device_extensions,
-            ..Default::default()
-        },
-    )?;
-
-    Ok((physical_device, logical_device, Box::new(queues)))
 }
