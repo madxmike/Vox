@@ -1,11 +1,11 @@
 use std::collections::HashMap;
 
-use crate::transform::Position;
+
 
 use super::{
     block::Block,
     block_position::BlockPosition,
-    chunk::{self, Chunk, CHUNK_BLOCK_WIDTH},
+    chunk::{Chunk},
     direction::Direction,
 };
 

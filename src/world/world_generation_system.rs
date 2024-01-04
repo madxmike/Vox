@@ -7,7 +7,7 @@ use crate::world::{
 
 use super::world::World;
 
-pub fn generate_world(seed: u64) -> World {
+pub fn generate_world(_seed: u64) -> World {
     const NUM_CHUNKS: u32 = 1;
 
     let mut chunks: HashMap<BlockPosition, Chunk> = HashMap::new();

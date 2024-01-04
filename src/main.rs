@@ -6,17 +6,14 @@ mod shaders;
 mod transform;
 mod world;
 use std::f32::consts::PI;
-use std::time::SystemTime;
 
 use camera::Camera;
 use renderer::renderer::Renderer;
 use renderer::vulkan::vulkan_renderer::VulkanRenderer;
 use renderer::world_render_system::WorldRenderSystem;
-use sdl2::event::{self, Event};
+use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 
-use sdl2::mouse::MouseButton;
-use sdl2::sys::KeyCode;
 use transform::Transform;
 use world::{chunk, world_generation_system};
 

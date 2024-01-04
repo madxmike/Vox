@@ -1,65 +1,30 @@
-use std::{
-    f32::consts::{FRAC_PI_2, PI},
-    os::raw,
-    sync::Arc,
-};
+use std::sync::Arc;
 
-use glam::Mat4;
 use sdl2::video::Window;
 use vulkano::{
     buffer::{
         allocator::{SubbufferAllocator, SubbufferAllocatorCreateInfo},
-        AllocateBufferError, Buffer, BufferCreateInfo, BufferUsage, IndexBuffer, Subbuffer,
+        Buffer, BufferCreateInfo, BufferUsage,
     },
-    command_buffer::{
-        allocator::StandardCommandBufferAllocator, AutoCommandBufferBuilder, CommandBufferUsage,
-        PrimaryAutoCommandBuffer, RenderPassBeginInfo, SubpassBeginInfo,
-    },
+    command_buffer::allocator::StandardCommandBufferAllocator,
     descriptor_set::{
-        self, allocator::StandardDescriptorSetAllocator, layout::DescriptorSetLayout,
-        DescriptorSet, DescriptorSetsCollection, PersistentDescriptorSet, WriteDescriptorSet,
+        allocator::StandardDescriptorSetAllocator, PersistentDescriptorSet, WriteDescriptorSet,
     },
     device::{
         physical::{PhysicalDevice, PhysicalDeviceType},
         Device, DeviceCreateInfo, DeviceExtensions, Queue, QueueCreateInfo, QueueFlags,
     },
-    format::{self, Format},
-    image::{
-        view::{ImageView, ImageViewCreateInfo},
-        Image, ImageCreateInfo, ImageUsage,
-    },
+    image::Image,
     instance::{Instance, InstanceCreateInfo, InstanceExtensions},
     memory::allocator::{AllocationCreateInfo, MemoryTypeFilter, StandardMemoryAllocator},
-    pipeline::{
-        graphics::{
-            color_blend::{ColorBlendAttachmentState, ColorBlendState},
-            depth_stencil::{self, DepthState, DepthStencilState},
-            input_assembly::{InputAssemblyState, PrimitiveTopology},
-            multisample::MultisampleState,
-            rasterization::{CullMode, FrontFace, RasterizationState},
-            vertex_input::{Vertex, VertexDefinition},
-            viewport::{Viewport, ViewportState},
-            GraphicsPipelineCreateInfo,
-        },
-        layout::PipelineDescriptorSetLayoutCreateInfo,
-        GraphicsPipeline, Pipeline, PipelineLayout, PipelineShaderStageCreateInfo,
-    },
-    render_pass::{Framebuffer, FramebufferCreateInfo, RenderPass, Subpass},
-    shader::ShaderModule,
     swapchain::{self, Surface, SurfaceApi, Swapchain, SwapchainCreateInfo, SwapchainPresentInfo},
     sync::GpuFuture,
     Handle, Validated, VulkanLibrary, VulkanObject,
 };
 
-use crate::{
-    camera::Camera,
-    mesh::Mesh,
-    renderer::renderer::{self, Renderer},
-    shaders::{self},
-    transform::Transform,
-};
+use crate::{camera::Camera, mesh::Mesh, renderer::renderer::Renderer};
 
-use super::default_lit_pipeline::{self, vs, DefaultLitPipeline, DefaultLitVertex};
+use super::default_lit_pipeline::{vs, DefaultLitPipeline, DefaultLitVertex};
 
 const REQUIRED_DEVICE_EXTENSIONS: DeviceExtensions = DeviceExtensions {
     khr_swapchain: true,
@@ -318,7 +283,7 @@ impl Renderer for VulkanRenderer {
         let mesh_normals = mesh.normals();
 
         let mut verticies: Vec<DefaultLitVertex> = vec![];
-        let normal_idx = 0;
+        let _normal_idx = 0;
         for i in 0..mesh.verticies().len() {
             verticies.push(DefaultLitVertex {
                 position: mesh_verticies[i].to_array(),
