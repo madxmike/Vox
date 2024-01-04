@@ -238,7 +238,7 @@ impl VulkanRenderer {
 }
 
 impl Renderer for VulkanRenderer {
-    fn render(&mut self, camera: &Camera, mesh: Box<dyn Mesh>) {
+    fn default_lit(&mut self, camera: &Camera, mesh: Box<dyn Mesh>) {
         let mvp_buffer = SubbufferAllocator::new(
             self.memory_allocator.clone(),
             SubbufferAllocatorCreateInfo {
