@@ -42,6 +42,8 @@ fn main() {
         far_clipping_plane: 100.0,
         field_of_view: 90.0,
         aspect_ratio,
+
+        ..Camera::default()
     };
 
     let world = world_generation_system::generate_world(10);

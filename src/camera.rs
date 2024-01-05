@@ -8,7 +8,7 @@ const MIN_PITCH_DEGREES: f32 = -70.0;
 const MAX_PITCH_RADIANS: f32 = MAX_PITCH_DEGREES * PI / 180.0;
 const MIN_PITCH_RADIANS: f32 = MIN_PITCH_DEGREES * PI / 180.0;
 
-// TODO (Michael): Could we apply some nicer types here to ensure correctness?
+#[derive(Default)]
 pub struct Camera {
     pub transform: Transform,
     pub local_transform: Transform,
@@ -16,6 +16,8 @@ pub struct Camera {
     pub far_clipping_plane: f32,
     pub field_of_view: f32,
     pub aspect_ratio: f32,
+
+    pub pitch: f32,
 }
 
 impl Camera {
@@ -57,6 +59,9 @@ impl Camera {
 
     /// Rotates the Camera's pitch by the angle (in radians) clamped to [[MIN_PITCH_RADIANS], [MAX_PITCH_RADIANS]].
     pub fn rotate_pitch(&mut self, angle: f32) {
-        self.local_transform.pitch(angle);
+        self.pitch += angle;
+        if self.pitch >= MIN_PITCH_RADIANS && self.pitch <= MAX_PITCH_RADIANS {
+            self.local_transform.pitch(angle);
+        }
     }
 }
