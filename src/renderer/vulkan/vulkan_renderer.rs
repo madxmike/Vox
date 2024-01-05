@@ -12,7 +12,7 @@ use vulkano::{
     },
     device::{
         physical::{PhysicalDevice, PhysicalDeviceType},
-        Device, DeviceCreateInfo, DeviceExtensions, Queue, QueueCreateInfo, QueueFlags,
+        Device, DeviceCreateInfo, DeviceExtensions, Features, Queue, QueueCreateInfo, QueueFlags,
     },
     image::Image,
     instance::{Instance, InstanceCreateInfo, InstanceExtensions},
@@ -29,6 +29,11 @@ use super::default_lit_pipeline::{vs, DefaultLitPipeline, DefaultLitVertex};
 const REQUIRED_DEVICE_EXTENSIONS: DeviceExtensions = DeviceExtensions {
     khr_swapchain: true,
     ..DeviceExtensions::empty()
+};
+
+const REQUIRED_DEVICE_FEATURES: Features = Features {
+    fill_mode_non_solid: true,
+    ..Features::empty()
 };
 
 pub struct VulkanRenderer {
@@ -86,6 +91,7 @@ impl VulkanRenderer {
             &vulkan_instance,
             &vulkan_surface,
             REQUIRED_DEVICE_EXTENSIONS,
+            REQUIRED_DEVICE_FEATURES,
         )
         .unwrap();
 
@@ -178,6 +184,7 @@ impl VulkanRenderer {
         vulkan_instance: &Arc<Instance>,
         vulkan_surface: &Arc<Surface>,
         required_device_extensions: DeviceExtensions,
+        required_device_features: Features,
     ) -> Result<
         (
             Arc<PhysicalDevice>,
@@ -229,6 +236,7 @@ impl VulkanRenderer {
                     ..Default::default()
                 }],
                 enabled_extensions: required_device_extensions,
+                enabled_features: required_device_features,
                 ..Default::default()
             },
         )?;

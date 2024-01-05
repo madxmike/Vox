@@ -21,7 +21,6 @@ pub struct Camera {
 }
 
 impl Camera {
-    // fn new() -> Self {}
     pub fn transform_mut(&mut self) -> &mut Transform {
         &mut self.transform
     }

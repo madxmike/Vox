@@ -2,7 +2,6 @@ mod camera;
 mod cube_mesh;
 mod mesh;
 mod renderer;
-mod shaders;
 mod transform;
 mod world;
 use std::f32::consts::PI;
