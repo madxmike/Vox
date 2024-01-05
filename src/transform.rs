@@ -1,4 +1,4 @@
-use glam::{vec3, Mat4, Vec3};
+use glam::{vec3, Mat4, Quat, Vec3};
 
 pub type Position = glam::Vec3;
 pub type Rotation = glam::Quat;
@@ -9,6 +9,7 @@ pub enum Axis {
     Up,
 }
 
+#[derive(Clone, Copy, Default)]
 pub struct Transform {
     pub position: Position,
     pub rotation: Rotation,
@@ -49,6 +50,10 @@ impl Transform {
         self.calculate_direction_vectors()
     }
 
+    pub fn rotate_quat(&mut self, quat: Quat) {
+        self.rotation *= quat
+    }
+
     #[inline]
     pub fn roll(&mut self, angle: f32) {
         self.rotate(Axis::Forward, angle)
@@ -68,6 +73,12 @@ impl Transform {
         self.position.x += x;
         self.position.y += y;
         self.position.z += z;
+    }
+
+    pub fn translate_vec3(&mut self, vec: Vec3) {
+        self.translate_along_axis(Axis::Forward, vec.z);
+        self.translate_along_axis(Axis::Right, vec.x);
+        self.translate_along_axis(Axis::Up, vec.y);
     }
 
     pub fn translate_along_axis(&mut self, axis: Axis, value: f32) {

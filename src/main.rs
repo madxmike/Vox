@@ -37,6 +37,7 @@ fn main() {
     sdl_context.mouse().set_relative_mouse_mode(true);
     let mut camera = Camera {
         transform: Transform::new(glam::vec3(7.0, 0.0, -27.0), glam::vec3(0.0, 0.0, 0.0)),
+        local_transform: Transform::default(),
         near_clipping_plane: 0.01,
         far_clipping_plane: 100.0,
         field_of_view: 90.0,
@@ -65,39 +66,19 @@ fn main() {
                 Event::KeyDown {
                     keycode: Some(Keycode::W),
                     ..
-                } => {
-                    camera.transform.translate_along_axis(
-                        transform::Axis::Forward,
-                        -camera_movement_speed * delta_time,
-                    );
-                }
+                } => camera.r#move(0.0, 0.0, -camera_movement_speed * delta_time),
                 Event::KeyDown {
                     keycode: Some(Keycode::S),
                     ..
-                } => {
-                    camera.transform.translate_along_axis(
-                        transform::Axis::Forward,
-                        camera_movement_speed * delta_time,
-                    );
-                }
+                } => camera.r#move(0.0, 0.0, camera_movement_speed * delta_time),
                 Event::KeyDown {
                     keycode: Some(Keycode::A),
                     ..
-                } => {
-                    camera.transform.translate_along_axis(
-                        transform::Axis::Right,
-                        -camera_movement_speed * delta_time,
-                    );
-                }
+                } => camera.r#move(-camera_movement_speed * delta_time, 0.0, 0.0),
                 Event::KeyDown {
                     keycode: Some(Keycode::D),
                     ..
-                } => {
-                    camera.transform.translate_along_axis(
-                        transform::Axis::Right,
-                        camera_movement_speed * delta_time,
-                    );
-                }
+                } => camera.r#move(camera_movement_speed * delta_time, 0.0, 0.0),
                 Event::KeyDown {
                     keycode: Some(Keycode::Space),
                     ..
@@ -145,6 +126,7 @@ fn main() {
 
                 Event::MouseMotion { xrel, yrel, .. } => {
                     camera.rotate_yaw((xrel as f32 * delta_time) * PI / 180.0);
+                    camera.rotate_pitch((yrel as f32 * delta_time) * PI / 180.0)
                 }
                 _ => {}
             }

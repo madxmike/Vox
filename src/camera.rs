@@ -11,6 +11,7 @@ const MIN_PITCH_RADIANS: f32 = MIN_PITCH_DEGREES * PI / 180.0;
 // TODO (Michael): Could we apply some nicer types here to ensure correctness?
 pub struct Camera {
     pub transform: Transform,
+    pub local_transform: Transform,
     pub near_clipping_plane: f32,
     pub far_clipping_plane: f32,
     pub field_of_view: f32,
@@ -24,8 +25,10 @@ impl Camera {
     }
 
     pub fn view(&self) -> glam::Mat4 {
-        let mut view_matrix = glam::Mat4::from_quat(self.transform.rotation);
-        let forward = self.transform.position + self.transform.forward;
+        let mut view_matrix =
+            glam::Mat4::from_quat(self.transform.rotation * self.local_transform.rotation);
+        let forward =
+            self.transform.position + self.transform.forward * self.local_transform.forward;
         view_matrix.w_axis = glam::vec4(forward.x, forward.y, forward.z, 1.0);
 
         view_matrix.inverse()
@@ -40,6 +43,12 @@ impl Camera {
         )
     }
 
+    pub fn r#move(&mut self, x: f32, y: f32, z: f32) {
+        let mut local_oriented_move = self.local_transform.rotation * glam::vec3(x, y, z);
+        local_oriented_move.y = -local_oriented_move.y; // Invert as otherwise we move in the wrong direction
+        self.transform.translate_vec3(local_oriented_move);
+    }
+
     /// Rotates the Camera's yaw by the angle (in radians).
     /// If current yaw + angle is > 2PI then yaw will be set to 2PI - (yaw + angle)
     pub fn rotate_yaw(&mut self, angle: f32) {
@@ -48,6 +57,6 @@ impl Camera {
 
     /// Rotates the Camera's pitch by the angle (in radians) clamped to [[MIN_PITCH_RADIANS], [MAX_PITCH_RADIANS]].
     pub fn rotate_pitch(&mut self, angle: f32) {
-        self.transform.pitch(angle)
+        self.local_transform.pitch(angle);
     }
 }
