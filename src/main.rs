@@ -36,10 +36,10 @@ fn main() {
 
     sdl_context.mouse().set_relative_mouse_mode(true);
     let mut camera = Camera {
-        transform: Transform::new(glam::vec3(7.0, 0.0, -27.0), glam::vec3(0.0, 0.0, 0.0)),
+        transform: Transform::new(glam::vec3(0.0, 0.0, 3.0), glam::vec3(0.0, 0.0, 0.0)),
         local_transform: Transform::default(),
         near_clipping_plane: 0.01,
-        far_clipping_plane: 100.0,
+        far_clipping_plane: 1000.0,
         field_of_view: 90.0,
         aspect_ratio,
 

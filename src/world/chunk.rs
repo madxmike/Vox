@@ -1,5 +1,3 @@
-
-
 use super::{block::Block, block_position::BlockPosition};
 
 pub const CHUNK_BLOCK_WIDTH: usize = 16;
@@ -11,29 +9,26 @@ pub enum ChunkAccessorError {
     PositionNotWithinChunk(BlockPosition),
 }
 
+#[derive(Clone)]
 pub struct Chunk {
     origin_position: BlockPosition,
-    blocks: [Option<Block>; CHUNK_SIZE],
+    blocks: Vec<Block>,
 }
 
 impl Chunk {
     pub fn new(origin_position: BlockPosition) -> Self {
         let mut chunk = Chunk {
             origin_position,
-            blocks: [None; CHUNK_SIZE],
+            blocks: Vec::new(),
         };
 
         for i in 0..CHUNK_SIZE {
-            chunk.blocks[i] = Some(Block {
+            chunk.blocks.push(Block {
                 id: i as u16,
                 state: 0,
             })
         }
         chunk
-    }
-
-    pub fn blocks(&self) -> &[Option<Block>] {
-        &self.blocks
     }
 
     pub fn origin_position(&self) -> BlockPosition {
@@ -63,7 +58,7 @@ impl Chunk {
     pub fn get_block_at_position(
         &self,
         world_position: BlockPosition,
-    ) -> Result<Option<Block>, ChunkAccessorError> {
+    ) -> Result<Option<&Block>, ChunkAccessorError> {
         if !self.is_world_position_within(world_position) {
             return Err(ChunkAccessorError::PositionNotWithinChunk(world_position));
         }
@@ -75,7 +70,7 @@ impl Chunk {
             + (chunk_local_position.z.abs() * CHUNK_BLOCK_WIDTH as i32 * CHUNK_BLOCK_HEIGHT as i32))
             as usize;
 
-        Ok(self.blocks[position_idx])
+        Ok(self.blocks.get(position_idx))
     }
 
     pub fn is_world_position_within(&self, world_position: BlockPosition) -> bool {
