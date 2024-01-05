@@ -66,37 +66,55 @@ fn main() {
                     keycode: Some(Keycode::W),
                     ..
                 } => {
-                    camera.transform.position.z -= camera_movement_speed * delta_time;
+                    camera.transform.translate_along_axis(
+                        transform::Axis::Forward,
+                        -camera_movement_speed * delta_time,
+                    );
                 }
                 Event::KeyDown {
                     keycode: Some(Keycode::S),
                     ..
                 } => {
-                    camera.transform.position.z += camera_movement_speed * delta_time;
+                    camera.transform.translate_along_axis(
+                        transform::Axis::Forward,
+                        camera_movement_speed * delta_time,
+                    );
                 }
                 Event::KeyDown {
                     keycode: Some(Keycode::A),
                     ..
                 } => {
-                    camera.transform.position.x -= camera_movement_speed * delta_time;
+                    camera.transform.translate_along_axis(
+                        transform::Axis::Right,
+                        -camera_movement_speed * delta_time,
+                    );
                 }
                 Event::KeyDown {
                     keycode: Some(Keycode::D),
                     ..
                 } => {
-                    camera.transform.position.x += camera_movement_speed * delta_time;
+                    camera.transform.translate_along_axis(
+                        transform::Axis::Right,
+                        camera_movement_speed * delta_time,
+                    );
                 }
                 Event::KeyDown {
                     keycode: Some(Keycode::Space),
                     ..
                 } => {
-                    camera.transform.position.y += camera_movement_speed * delta_time;
+                    camera.transform.translate_along_axis(
+                        transform::Axis::Up,
+                        camera_movement_speed * delta_time,
+                    );
                 }
                 Event::KeyDown {
                     keycode: Some(Keycode::LCtrl),
                     ..
                 } => {
-                    camera.transform.position.y -= camera_movement_speed * delta_time;
+                    camera.transform.translate_along_axis(
+                        transform::Axis::Up,
+                        -camera_movement_speed * delta_time,
+                    );
                 }
                 Event::KeyDown {
                     keycode: Some(Keycode::Minus),
@@ -126,7 +144,6 @@ fn main() {
                 }
 
                 Event::MouseMotion { xrel, yrel, .. } => {
-                    // camera.rotate_pitch((yrel as f32 * delta_time) * PI / 180.0);
                     camera.rotate_yaw((xrel as f32 * delta_time) * PI / 180.0);
                 }
                 _ => {}

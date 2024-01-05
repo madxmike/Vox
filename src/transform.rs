@@ -3,6 +3,12 @@ use glam::{vec3, Mat4, Vec3};
 pub type Position = glam::Vec3;
 pub type Rotation = glam::Quat;
 
+pub enum Axis {
+    Forward,
+    Right,
+    Up,
+}
+
 pub struct Transform {
     pub position: Position,
     pub rotation: Rotation,
@@ -33,14 +39,43 @@ impl Transform {
         }
     }
 
-    #[inline]
-    pub fn rotation_eurler(&self) -> (f32, f32, f32) {
-        self.rotation.to_euler(glam::EulerRot::XYZ)
+    pub fn rotate(&mut self, axis: Axis, angle: f32) {
+        self.rotation *= match axis {
+            Axis::Forward => glam::Quat::from_axis_angle(self.forward, angle),
+            Axis::Right => glam::Quat::from_axis_angle(self.right, angle),
+            Axis::Up => glam::Quat::from_axis_angle(self.up, angle),
+        };
+
+        self.calculate_direction_vectors()
     }
 
-    pub fn rotate_yaw(&mut self, mut angle: f32) {
-        self.rotation *= glam::Quat::from_axis_angle(self.up, angle);
-        self.calculate_direction_vectors()
+    #[inline]
+    pub fn roll(&mut self, angle: f32) {
+        self.rotate(Axis::Forward, angle)
+    }
+
+    #[inline]
+    pub fn pitch(&mut self, angle: f32) {
+        self.rotate(Axis::Right, angle)
+    }
+
+    #[inline]
+    pub fn yaw(&mut self, angle: f32) {
+        self.rotate(Axis::Up, angle)
+    }
+
+    pub fn translate(&mut self, x: f32, y: f32, z: f32) {
+        self.position.x += x;
+        self.position.y += y;
+        self.position.z += z;
+    }
+
+    pub fn translate_along_axis(&mut self, axis: Axis, value: f32) {
+        self.position += match axis {
+            Axis::Forward => self.forward * value,
+            Axis::Right => self.right * value,
+            Axis::Up => self.up * value,
+        };
     }
 
     fn calculate_direction_vectors(&mut self) {
@@ -51,16 +86,16 @@ impl Transform {
 
     #[inline]
     fn forward(rotation: glam::Quat) -> Vec3 {
-        rotation.conjugate() * vec3(0.0, 0.0, -1.0)
+        (rotation * vec3(0.0, 0.0, 1.0)).normalize()
     }
 
     #[inline]
     fn right(rotation: glam::Quat) -> Vec3 {
-        rotation.conjugate() * vec3(1.0, 0.0, 0.0)
+        (rotation * vec3(1.0, 0.0, 0.0)).normalize()
     }
 
     #[inline]
     fn up(rotation: glam::Quat) -> Vec3 {
-        rotation.conjugate() * vec3(0.0, -1.0, 0.0)
+        (rotation * vec3(0.0, -1.0, 0.0)).normalize()
     }
 }

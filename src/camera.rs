@@ -43,11 +43,11 @@ impl Camera {
     /// Rotates the Camera's yaw by the angle (in radians).
     /// If current yaw + angle is > 2PI then yaw will be set to 2PI - (yaw + angle)
     pub fn rotate_yaw(&mut self, angle: f32) {
-        self.transform.rotate_yaw(angle)
+        self.transform.yaw(angle)
     }
 
     /// Rotates the Camera's pitch by the angle (in radians) clamped to [[MIN_PITCH_RADIANS], [MAX_PITCH_RADIANS]].
     pub fn rotate_pitch(&mut self, angle: f32) {
-        todo!()
+        self.transform.pitch(angle)
     }
 }
