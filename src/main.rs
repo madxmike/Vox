@@ -34,11 +34,9 @@ fn main() {
 
     let mut event_pump = sdl_context.event_pump().unwrap();
 
+    sdl_context.mouse().set_relative_mouse_mode(true);
     let mut camera = Camera {
-        transform: Transform {
-            position: glam::vec3(0.0, 0.0, 3.0),
-            rotation: glam::Quat::from_euler(glam::EulerRot::XYZ, 34.7 * PI / 180.0, 0.0, 0.0),
-        },
+        transform: Transform::new(glam::vec3(7.0, 0.0, -27.0), glam::vec3(0.0, 0.0, 0.0)),
         near_clipping_plane: 0.01,
         far_clipping_plane: 100.0,
         field_of_view: 90.0,
@@ -127,6 +125,10 @@ fn main() {
                     camera.transform.position = glam::Vec3::default();
                 }
 
+                Event::MouseMotion { xrel, yrel, .. } => {
+                    // camera.rotate_pitch((yrel as f32 * delta_time) * PI / 180.0);
+                    camera.rotate_yaw((xrel as f32 * delta_time) * PI / 180.0);
+                }
                 _ => {}
             }
         }

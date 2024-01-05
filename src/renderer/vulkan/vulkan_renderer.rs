@@ -249,13 +249,24 @@ impl Renderer for VulkanRenderer {
             },
         );
 
-        let mvp_buffer_subbuffer = {
-            let (model, view, projection) = camera.mvp();
+        let mesh_verticies = mesh.verticies();
+        let mesh_normals = mesh.normals();
 
+        let mut verticies: Vec<DefaultLitVertex> = vec![];
+        let _normal_idx = 0;
+        for i in 0..mesh.verticies().len() {
+            verticies.push(DefaultLitVertex {
+                position: mesh_verticies[i].to_array(),
+                normal: mesh_normals[i / 4].to_array(),
+            });
+        }
+
+        let mvp_buffer_subbuffer = {
+            let model_origin = mesh_verticies[0];
             let mvp_data = vs::MVP {
-                model: model.to_cols_array_2d(),
-                view: view.to_cols_array_2d(),
-                projection: projection.to_cols_array_2d(),
+                model: glam::Mat4::from_translation(model_origin).to_cols_array_2d(),
+                view: camera.view().to_cols_array_2d(),
+                projection: camera.projection().to_cols_array_2d(),
             };
 
             let subbuffer = mvp_buffer.allocate_sized().unwrap();
@@ -278,18 +289,6 @@ impl Renderer for VulkanRenderer {
             [],
         )
         .unwrap();
-
-        let mesh_verticies = mesh.verticies();
-        let mesh_normals = mesh.normals();
-
-        let mut verticies: Vec<DefaultLitVertex> = vec![];
-        let _normal_idx = 0;
-        for i in 0..mesh.verticies().len() {
-            verticies.push(DefaultLitVertex {
-                position: mesh_verticies[i].to_array(),
-                normal: mesh_normals[i / 4].to_array(),
-            });
-        }
 
         let vertex_buffer = Buffer::from_iter(
             self.memory_allocator.clone(),
