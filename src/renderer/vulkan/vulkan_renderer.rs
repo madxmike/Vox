@@ -1,14 +1,15 @@
-use std::sync::Arc;
+use std::{iter::zip, sync::Arc};
 
 use sdl2::video::Window;
 use vulkano::{
     buffer::{
         allocator::{SubbufferAllocator, SubbufferAllocatorCreateInfo},
-        Buffer, BufferCreateInfo, BufferUsage,
+        Buffer, BufferContents, BufferCreateInfo, BufferUsage,
     },
     command_buffer::allocator::StandardCommandBufferAllocator,
     descriptor_set::{
-        allocator::StandardDescriptorSetAllocator, PersistentDescriptorSet, WriteDescriptorSet,
+        self, allocator::StandardDescriptorSetAllocator, PersistentDescriptorSet,
+        WriteDescriptorSet,
     },
     device::{
         physical::{PhysicalDevice, PhysicalDeviceType},
@@ -24,7 +25,10 @@ use vulkano::{
 
 use crate::{camera::Camera, mesh::Mesh, renderer::renderer::Renderer};
 
-use super::default_lit_pipeline::{vs, DefaultLitPipeline, DefaultLitVertex};
+use super::{
+    default_lit_pipeline::{DefaultLitPipeline, DefaultLitVertex},
+    mvp::MVP,
+};
 
 const REQUIRED_DEVICE_EXTENSIONS: DeviceExtensions = DeviceExtensions {
     khr_swapchain: true,
@@ -243,62 +247,13 @@ impl VulkanRenderer {
 
         Ok((physical_device, logical_device, Box::new(queues)))
     }
-}
 
-impl Renderer for VulkanRenderer {
-    fn default_lit(&mut self, camera: &Camera, mesh: Box<dyn Mesh>) {
-        let mvp_buffer = SubbufferAllocator::new(
-            self.memory_allocator.clone(),
-            SubbufferAllocatorCreateInfo {
-                buffer_usage: BufferUsage::UNIFORM_BUFFER,
-                memory_type_filter: MemoryTypeFilter::PREFER_DEVICE
-                    | MemoryTypeFilter::HOST_SEQUENTIAL_WRITE,
-                ..Default::default()
-            },
-        );
-
-        let mesh_verticies = mesh.verticies();
-        let mesh_normals = mesh.normals();
-
-        let mut verticies: Vec<DefaultLitVertex> = vec![];
-        let _normal_idx = 0;
-        for i in 0..mesh.verticies().len() {
-            verticies.push(DefaultLitVertex {
-                position: mesh_verticies[i].to_array(),
-                normal: mesh_normals[i / 4].to_array(),
-            });
-        }
-
-        let mvp_buffer_subbuffer = {
-            let model_origin = mesh_verticies[0];
-            let mvp_data = vs::MVP {
-                model: glam::Mat4::from_translation(model_origin).to_cols_array_2d(),
-                view: camera.view().to_cols_array_2d(),
-                projection: camera.projection().to_cols_array_2d(),
-            };
-
-            let subbuffer = mvp_buffer.allocate_sized().unwrap();
-            *subbuffer.write().unwrap() = mvp_data;
-
-            subbuffer
-        };
-
-        let descriptor_set_layout = self
-            .pipelines
-            .default_lit
-            .layout()
-            .set_layouts()
-            .get(0)
-            .unwrap();
-        let descriptor_set = PersistentDescriptorSet::new(
-            &self.descriptor_set_allocator.clone(),
-            descriptor_set_layout.clone(),
-            [WriteDescriptorSet::buffer(0, mvp_buffer_subbuffer)],
-            [],
-        )
-        .unwrap();
-
-        let vertex_buffer = Buffer::from_iter(
+    fn create_vertex_buffer<T: BufferContents>(
+        &mut self,
+        verticies: Vec<T>,
+    ) -> Result<vulkano::buffer::Subbuffer<[T]>, Validated<vulkano::buffer::AllocateBufferError>>
+    {
+        Buffer::from_iter(
             self.memory_allocator.clone(),
             BufferCreateInfo {
                 usage: BufferUsage::VERTEX_BUFFER,
@@ -311,9 +266,14 @@ impl Renderer for VulkanRenderer {
             },
             verticies,
         )
-        .unwrap();
+    }
 
-        let index_buffer = Buffer::from_iter(
+    fn create_index_buffer<T: BufferContents>(
+        &mut self,
+        indicies: Vec<T>,
+    ) -> Result<vulkano::buffer::Subbuffer<[T]>, Validated<vulkano::buffer::AllocateBufferError>>
+    {
+        Buffer::from_iter(
             self.memory_allocator.clone(),
             BufferCreateInfo {
                 usage: BufferUsage::INDEX_BUFFER,
@@ -324,9 +284,48 @@ impl Renderer for VulkanRenderer {
                     | MemoryTypeFilter::HOST_SEQUENTIAL_WRITE,
                 ..Default::default()
             },
-            mesh.indicies().to_owned().iter().map(|index| *index),
+            indicies,
         )
-        .unwrap();
+    }
+}
+
+impl Renderer for VulkanRenderer {
+    fn default_lit(&mut self, camera: &Camera, mesh: Box<dyn Mesh>) {
+        let mesh_verticies = mesh.verticies();
+        let mesh_normals = mesh.normals();
+
+        let mut verticies: Vec<DefaultLitVertex> = vec![];
+        for i in 0..mesh.verticies().len() {
+            verticies.push(DefaultLitVertex {
+                position: mesh_verticies[i].to_array(),
+                normal: mesh_normals[i / 4].to_array(),
+            });
+        }
+
+        let vertex_buffer = self.create_vertex_buffer(verticies).unwrap();
+        let index_buffer = self
+            .create_index_buffer(
+                mesh.indicies()
+                    .to_owned()
+                    .iter()
+                    .map(|index| *index)
+                    .collect(),
+            )
+            .unwrap();
+
+        let descriptor_set = self
+            .pipelines
+            .default_lit
+            .create_descriptor_set(
+                &self.memory_allocator,
+                &self.descriptor_set_allocator,
+                MVP {
+                    model: mesh_verticies[0],
+                    view: camera.view(),
+                    projection: camera.projection(),
+                },
+            )
+            .unwrap();
 
         // TODO (Michael) call pipeline
         let command_buffers = self

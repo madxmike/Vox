@@ -82,7 +82,7 @@ impl WorldRenderSystem {
         }
         let neighbors = world.get_neighbors(block_position);
         let mut block_mesh = RuntimeMesh::default();
-        let block_position_vec3 = block_position.to_vec3();
+        let block_position_vec3 = block_position.to_chunk_local_position().to_vec3();
         for (direction, neighbor) in neighbors.iter() {
             match (direction, neighbor) {
                 (Direction::North, None) => {

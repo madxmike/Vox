@@ -143,6 +143,7 @@ fn main() {
         delta_time = ((current_render_tick_time - last_render_tick_time) as f32)
             / timer_subsystem.performance_frequency() as f32;
 
+        dbg!(delta_time);
         ::std::thread::sleep(::std::time::Duration::new(0, 1_000_000_000u32 / 60));
     }
 }

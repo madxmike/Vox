@@ -1,12 +1,19 @@
 use std::sync::Arc;
 
+use glam::Mat4;
 use vulkano::{
-    buffer::{BufferContents, Subbuffer},
+    buffer::{
+        allocator::{SubbufferAllocator, SubbufferAllocatorCreateInfo},
+        BufferContents, BufferUsage, Subbuffer,
+    },
     command_buffer::{
         allocator::StandardCommandBufferAllocator, AutoCommandBufferBuilder, CommandBufferUsage,
         PrimaryAutoCommandBuffer, RenderPassBeginInfo, SubpassBeginInfo,
     },
-    descriptor_set::PersistentDescriptorSet,
+    descriptor_set::{
+        allocator::{DescriptorSetAllocator, StandardDescriptorSetAllocator},
+        PersistentDescriptorSet, WriteDescriptorSet,
+    },
     device::{Device, Queue},
     format::{self, Format},
     image::{view::ImageView, Image, ImageCreateInfo, ImageUsage},
@@ -30,6 +37,8 @@ use vulkano::{
     Validated, ValidationError, VulkanError,
 };
 
+use super::mvp::MVP;
+
 pub mod vs {
     vulkano_shaders::shader! {
         ty: "vertex",
@@ -42,16 +51,6 @@ pub mod fs {
         ty: "fragment",
         path: "src/renderer/vulkan/shaders/default_lit.frag.glsl",
     }
-}
-
-pub enum DefaultLitPipelineError {
-    CouldNotLoadVertexShader(Validated<VulkanError>),
-    CouldNotLoadFragmentShader(Validated<VulkanError>),
-
-    VertexShaderEntryPointNotFound,
-    FragmentShaderEntryPointNotFound,
-
-    CouldNotValidateVertexDefinition(Box<ValidationError>),
 }
 
 #[derive(BufferContents, Vertex, Debug)]
@@ -273,6 +272,44 @@ impl DefaultLitPipeline {
                 )
             })
             .collect()
+    }
+
+    pub fn create_descriptor_set(
+        &self,
+        memory_allocator: &Arc<StandardMemoryAllocator>,
+        descriptor_set_allocator: &Arc<StandardDescriptorSetAllocator>,
+        mvp: MVP,
+    ) -> Result<Arc<PersistentDescriptorSet>, Validated<VulkanError>> {
+        let mvp_buffer = SubbufferAllocator::new(
+            memory_allocator.clone(),
+            SubbufferAllocatorCreateInfo {
+                buffer_usage: BufferUsage::UNIFORM_BUFFER,
+                memory_type_filter: MemoryTypeFilter::PREFER_DEVICE
+                    | MemoryTypeFilter::HOST_SEQUENTIAL_WRITE,
+                ..Default::default()
+            },
+        );
+
+        let mvp_buffer_subbuffer = {
+            let clip_space = mvp.to_clip_space();
+
+            let mvp_data = vs::MVP_Data {
+                clip_space: clip_space.to_cols_array_2d(),
+            };
+
+            let subbuffer = mvp_buffer.allocate_sized().unwrap();
+            *subbuffer.write().unwrap() = mvp_data;
+
+            subbuffer
+        };
+
+        let descriptor_set_layout = self.layout().set_layouts().get(0).unwrap();
+        PersistentDescriptorSet::new(
+            descriptor_set_allocator,
+            descriptor_set_layout.clone(),
+            [WriteDescriptorSet::buffer(0, mvp_buffer_subbuffer)],
+            [],
+        )
     }
 
     pub fn layout(&self) -> &PipelineLayout {
