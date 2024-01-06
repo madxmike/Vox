@@ -1,19 +1,21 @@
 use std::borrow::BorrowMut;
 
+use glam::Vec3;
+
 pub enum WindingDirection {
     Clockwise,
     CounterClockwise,
 }
 
 pub trait Mesh {
-    fn verticies(&self) -> &[glam::Vec3];
+    fn verticies(&self) -> &[[f32; 3]];
     fn normals(&self) -> &[glam::Vec3];
     fn indicies(&self) -> &[u32];
 }
 
 #[derive(Clone, Debug, Default)]
 pub struct RuntimeMesh {
-    pub verticies: Vec<glam::Vec3>,
+    pub verticies: Vec<[f32; 3]>,
     pub normals: Vec<glam::Vec3>,
     pub indicies: Vec<u32>,
 }
@@ -21,7 +23,8 @@ pub struct RuntimeMesh {
 impl RuntimeMesh {
     pub fn add_quad(&mut self, points: [glam::Vec3; 4], winding_direction: WindingDirection) {
         let num_existing_verticies = self.verticies().len() as u32;
-        self.verticies.append(points.to_vec().borrow_mut());
+        let mut verticies: Vec<[f32; 3]> = points.iter().map(Vec3::to_array).collect();
+        self.verticies.append(verticies.as_mut());
 
         let normal = (points[1] - points[0]).cross(points[2] - points[0]);
         // TODO (Michael): We can calculate these normals from the verts
@@ -51,7 +54,7 @@ impl RuntimeMesh {
 }
 
 impl Mesh for RuntimeMesh {
-    fn verticies(&self) -> &[glam::Vec3] {
+    fn verticies(&self) -> &[[f32; 3]] {
         &self.verticies
     }
 
@@ -70,7 +73,7 @@ impl Mesh for RuntimeMesh {
 /// This does not try to do any combining of faces or other deduplication logic.
 #[derive(Default, Clone)]
 pub struct StitchedMesh {
-    pub verticies: Vec<glam::Vec3>,
+    pub verticies: Vec<[f32; 3]>,
     pub normals: Vec<glam::Vec3>,
     pub indicies: Vec<u32>,
 }
@@ -81,7 +84,7 @@ impl StitchedMesh {
 
         let mesh_verticies = mesh.verticies();
 
-        let stiched_verticies: &mut Vec<glam::Vec3> = &mut self.verticies;
+        let stiched_verticies: &mut Vec<[f32; 3]> = &mut self.verticies;
         stiched_verticies.append(&mut mesh_verticies.to_vec());
 
         let stiched_normals: &mut Vec<glam::Vec3> = &mut self.normals;
@@ -103,7 +106,7 @@ impl StitchedMesh {
 }
 
 impl Mesh for StitchedMesh {
-    fn verticies(&self) -> &[glam::Vec3] {
+    fn verticies(&self) -> &[[f32; 3]] {
         &self.verticies
     }
 

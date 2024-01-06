@@ -1,12 +1,16 @@
-use std::{iter::zip, sync::Arc};
+use std::{
+    future::{self, IntoFuture},
+    iter::zip,
+    sync::Arc,
+};
 
 use sdl2::video::Window;
 use vulkano::{
     buffer::{
         allocator::{SubbufferAllocator, SubbufferAllocatorCreateInfo},
-        Buffer, BufferContents, BufferCreateInfo, BufferUsage,
+        Buffer, BufferContents, BufferCreateInfo, BufferUsage, Subbuffer,
     },
-    command_buffer::allocator::StandardCommandBufferAllocator,
+    command_buffer::{allocator::StandardCommandBufferAllocator, CommandBufferExecFuture},
     descriptor_set::{
         self, allocator::StandardDescriptorSetAllocator, PersistentDescriptorSet,
         WriteDescriptorSet,
@@ -18,15 +22,22 @@ use vulkano::{
     image::Image,
     instance::{Instance, InstanceCreateInfo, InstanceExtensions},
     memory::allocator::{AllocationCreateInfo, MemoryTypeFilter, StandardMemoryAllocator},
-    swapchain::{self, Surface, SurfaceApi, Swapchain, SwapchainCreateInfo, SwapchainPresentInfo},
-    sync::GpuFuture,
-    Handle, Validated, VulkanLibrary, VulkanObject,
+    swapchain::{
+        self, PresentFuture, PresentMode, Surface, SurfaceApi, Swapchain, SwapchainAcquireFuture,
+        SwapchainCreateInfo, SwapchainPresentInfo,
+    },
+    sync::{
+        self,
+        future::{FenceSignalFuture, JoinFuture},
+        GpuFuture,
+    },
+    Handle, Validated, VulkanError, VulkanLibrary, VulkanObject,
 };
 
-use crate::{camera::Camera, mesh::Mesh, renderer::renderer::Renderer};
+use crate::{camera::Camera, mesh::Mesh};
 
 use super::{
-    default_lit_pipeline::{DefaultLitPipeline, DefaultLitVertex},
+    default_lit_pipeline::{DefaultLitIndex, DefaultLitPipeline, DefaultLitVertex},
     mvp::MVP,
 };
 
@@ -55,6 +66,20 @@ pub struct VulkanRenderer {
     swapchain: Arc<Swapchain>,
     swapchain_images: Vec<Arc<Image>>,
     pipelines: Pipelines,
+    fences: Vec<
+        Option<
+            Arc<
+                FenceSignalFuture<
+                    PresentFuture<
+                        CommandBufferExecFuture<
+                            JoinFuture<Box<dyn GpuFuture>, SwapchainAcquireFuture>,
+                        >,
+                    >,
+                >,
+            >,
+        >,
+    >,
+    last_fence_index: usize,
 }
 
 pub struct Pipelines {
@@ -120,6 +145,7 @@ impl VulkanRenderer {
                 extent,
             );
         let queue = queues.next().unwrap();
+        let images_len = swapchain_images.len();
 
         VulkanRenderer {
             sdl_window,
@@ -135,6 +161,8 @@ impl VulkanRenderer {
             swapchain: swapchain,
             swapchain_images: swapchain_images,
             pipelines: pipelines,
+            fences: vec![None; images_len],
+            last_fence_index: 0,
         }
     }
 
@@ -169,6 +197,7 @@ impl VulkanRenderer {
                     .next()
                     .unwrap()
                     .to_owned(),
+                present_mode: PresentMode::Immediate,
                 ..Default::default()
             },
         )
@@ -248,10 +277,14 @@ impl VulkanRenderer {
         Ok((physical_device, logical_device, Box::new(queues)))
     }
 
-    fn create_vertex_buffer<T: BufferContents>(
+    pub fn create_vertex_buffer<T, I>(
         &mut self,
-        verticies: Vec<T>,
+        verticies: I,
     ) -> Result<vulkano::buffer::Subbuffer<[T]>, Validated<vulkano::buffer::AllocateBufferError>>
+    where
+        T: BufferContents,
+        I: IntoIterator<Item = T>,
+        I::IntoIter: ExactSizeIterator,
     {
         Buffer::from_iter(
             self.memory_allocator.clone(),
@@ -268,10 +301,14 @@ impl VulkanRenderer {
         )
     }
 
-    fn create_index_buffer<T: BufferContents>(
+    pub fn create_index_buffer<T, I>(
         &mut self,
-        indicies: Vec<T>,
+        indicies: I,
     ) -> Result<vulkano::buffer::Subbuffer<[T]>, Validated<vulkano::buffer::AllocateBufferError>>
+    where
+        T: BufferContents,
+        I: IntoIterator<Item = T>,
+        I::IntoIter: ExactSizeIterator,
     {
         Buffer::from_iter(
             self.memory_allocator.clone(),
@@ -287,44 +324,17 @@ impl VulkanRenderer {
             indicies,
         )
     }
-}
 
-impl Renderer for VulkanRenderer {
-    fn default_lit(&mut self, camera: &Camera, mesh: Box<dyn Mesh>) {
-        let mesh_verticies = mesh.verticies();
-        let mesh_normals = mesh.normals();
-
-        let mut verticies: Vec<DefaultLitVertex> = vec![];
-        for i in 0..mesh.verticies().len() {
-            verticies.push(DefaultLitVertex {
-                position: mesh_verticies[i].to_array(),
-                normal: mesh_normals[i / 4].to_array(),
-            });
-        }
-
-        let vertex_buffer = self.create_vertex_buffer(verticies).unwrap();
-        let index_buffer = self
-            .create_index_buffer(
-                mesh.indicies()
-                    .to_owned()
-                    .iter()
-                    .map(|index| *index)
-                    .collect(),
-            )
-            .unwrap();
-
+    pub fn default_lit(
+        &mut self,
+        mvp: MVP,
+        vertex_buffer: &Subbuffer<[DefaultLitVertex]>,
+        index_buffer: &Subbuffer<[u32]>,
+    ) {
         let descriptor_set = self
             .pipelines
             .default_lit
-            .create_descriptor_set(
-                &self.memory_allocator,
-                &self.descriptor_set_allocator,
-                MVP {
-                    model: mesh_verticies[0],
-                    view: camera.view(),
-                    projection: camera.projection(),
-                },
-            )
+            .create_descriptor_set(&self.memory_allocator, &self.descriptor_set_allocator, mvp)
             .unwrap();
 
         // TODO (Michael) call pipeline
@@ -343,8 +353,23 @@ impl Renderer for VulkanRenderer {
         let (image_idx, _suboptimal, acquired_future) =
             swapchain::acquire_next_image(self.swapchain.clone(), None).unwrap();
 
-        let _ = acquired_future
-            .boxed()
+        if let Some(image_fence) = &mut self.fences[image_idx as usize] {
+            image_fence.wait(None).unwrap();
+        }
+
+        let previous_future = match self.fences[self.last_fence_index].clone() {
+            // Create a NowFuture
+            None => {
+                let mut now = sync::now(self.logical_device.clone());
+                now.cleanup_finished();
+                now.boxed()
+            }
+            // Use the existing FenceSignalFuture
+            Some(fence) => fence.boxed(),
+        };
+
+        let future = previous_future
+            .join(acquired_future)
             .then_execute(
                 self.queue.clone(),
                 command_buffers[image_idx as usize].clone(),
@@ -356,5 +381,8 @@ impl Renderer for VulkanRenderer {
             )
             .then_signal_fence_and_flush()
             .unwrap();
+
+        self.fences[image_idx as usize] = Some(Arc::new(future));
+        self.last_fence_index = image_idx as usize;
     }
 }

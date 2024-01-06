@@ -1,4 +1,6 @@
-use std::collections::HashMap;
+use std::{borrow::BorrowMut, collections::HashMap, sync::Arc};
+
+use vulkano::buffer::Subbuffer;
 
 use crate::{
     camera::Camera,
@@ -9,7 +11,11 @@ use crate::{
     world::world::World,
 };
 
-use super::renderer::Renderer;
+use super::vulkan::{
+    default_lit_pipeline::{DefaultLitIndex, DefaultLitVertex},
+    mvp::MVP,
+    vulkan_renderer::VulkanRenderer,
+};
 
 #[derive(Debug)]
 pub enum WorldRenderError {
@@ -19,19 +25,51 @@ pub enum WorldRenderError {
 #[derive(Default)]
 pub struct WorldRenderSystem {
     chunk_mesh_cache: HashMap<BlockPosition, StitchedMesh>,
+    terrain_vertex_buffer: Option<Subbuffer<[DefaultLitVertex]>>,
+    terrain_index_buffer: Option<Subbuffer<[u32]>>,
 }
 
 impl WorldRenderSystem {
     pub fn render_world(
         &mut self,
-        renderer: &mut Box<dyn Renderer>,
+        renderer: &mut VulkanRenderer,
         world: &World,
         camera: &Camera,
     ) -> Result<(), WorldRenderError> {
         let terrain_mesh = self.build_terrain_mesh(world)?;
 
-        renderer.as_mut().default_lit(camera, terrain_mesh);
+        let mvp = MVP {
+            model: glam::Vec3::from_array(terrain_mesh.verticies()[0]),
+            view: camera.view(),
+            projection: camera.projection(),
+        };
 
+        if let None = self.terrain_vertex_buffer {
+            self.terrain_vertex_buffer = Some(
+                renderer
+                    .create_vertex_buffer(terrain_mesh.verticies().iter().map(|vert| {
+                        DefaultLitVertex {
+                            position: vert.to_owned(),
+                            normal: [0.0, 0.0, 0.0],
+                        }
+                    }))
+                    .unwrap(),
+            );
+
+            self.terrain_index_buffer = Some(
+                renderer
+                    .create_index_buffer(terrain_mesh.indicies().iter().map(|idx| *idx))
+                    .unwrap(),
+            );
+
+            dbg!("created buffers!");
+        }
+
+        renderer.default_lit(
+            mvp,
+            &self.terrain_vertex_buffer.as_ref().unwrap(),
+            &self.terrain_index_buffer.as_ref().unwrap(),
+        );
         Ok(())
     }
 
@@ -82,7 +120,7 @@ impl WorldRenderSystem {
         }
         let neighbors = world.get_neighbors(block_position);
         let mut block_mesh = RuntimeMesh::default();
-        let block_position_vec3 = block_position.to_chunk_local_position().to_vec3();
+        let block_position_vec3 = block_position.to_vec3();
         for (direction, neighbor) in neighbors.iter() {
             match (direction, neighbor) {
                 (Direction::North, None) => {

@@ -24,7 +24,7 @@ use vulkano::{
             depth_stencil::{DepthState, DepthStencilState},
             input_assembly::InputAssemblyState,
             multisample::MultisampleState,
-            rasterization::{CullMode, FrontFace, RasterizationState},
+            rasterization::{CullMode, FrontFace, PolygonMode, RasterizationState},
             vertex_input::{Vertex, VertexDefinition},
             viewport::{Viewport, ViewportState},
             GraphicsPipelineCreateInfo,
@@ -122,6 +122,7 @@ impl DefaultLitPipeline {
                     ..Default::default()
                 }),
                 rasterization_state: Some(RasterizationState {
+                    polygon_mode: PolygonMode::Line,
                     cull_mode: CullMode::Back,
                     front_face: FrontFace::Clockwise,
                     ..Default::default()
@@ -158,8 +159,8 @@ impl DefaultLitPipeline {
         &self,
         command_buffer_allocator: &StandardCommandBufferAllocator,
         queue: Arc<Queue>,
-        verticies: Subbuffer<[DefaultLitVertex]>,
-        indicies: Subbuffer<[u32]>,
+        verticies: &Subbuffer<[DefaultLitVertex]>,
+        indicies: &Subbuffer<[u32]>,
         descriptor_set: Arc<PersistentDescriptorSet>,
     ) -> Result<Vec<Arc<PrimaryAutoCommandBuffer>>, Validated<VulkanError>> {
         self.framebuffers
@@ -168,7 +169,7 @@ impl DefaultLitPipeline {
                 let mut builder = AutoCommandBufferBuilder::primary(
                     command_buffer_allocator,
                     queue.queue_family_index(),
-                    CommandBufferUsage::MultipleSubmit,
+                    CommandBufferUsage::OneTimeSubmit,
                 )?;
 
                 builder

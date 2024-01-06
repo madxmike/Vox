@@ -12,3 +12,6 @@ vulkano-shaders = "0.34.0"
 glam = "0.25.0"
 strum = "0.25.0"
 strum_macros = "0.25.3"
+
+[profile.release]
+debug = true
