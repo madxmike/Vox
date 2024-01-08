@@ -1,5 +1,10 @@
-use std::{borrow::BorrowMut, collections::HashMap, sync::Arc};
+use std::{
+    borrow::{Borrow, BorrowMut},
+    collections::HashMap,
+    sync::Arc,
+};
 
+use glam::vec3;
 use vulkano::buffer::Subbuffer;
 
 use crate::{
@@ -27,6 +32,7 @@ pub struct WorldRenderSystem {
     chunk_mesh_cache: HashMap<BlockPosition, StitchedMesh>,
     terrain_vertex_buffer: Option<Subbuffer<[DefaultLitVertex]>>,
     terrain_index_buffer: Option<Subbuffer<[u32]>>,
+    cached_terrain_mesh: Option<StitchedMesh>,
 }
 
 impl WorldRenderSystem {
@@ -36,15 +42,10 @@ impl WorldRenderSystem {
         world: &World,
         camera: &Camera,
     ) -> Result<(), WorldRenderError> {
-        let terrain_mesh = self.build_terrain_mesh(world)?;
+        if let None = self.cached_terrain_mesh {
+            dbg!("rebuilding buffers");
+            let terrain_mesh = self.build_terrain_mesh(world)?;
 
-        let mvp = MVP {
-            model: glam::Vec3::from_array(terrain_mesh.verticies()[0]),
-            view: camera.view(),
-            projection: camera.projection(),
-        };
-
-        if let None = self.terrain_vertex_buffer {
             self.terrain_vertex_buffer = Some(
                 renderer
                     .create_vertex_buffer(terrain_mesh.verticies().iter().map(|vert| {
@@ -63,7 +64,15 @@ impl WorldRenderSystem {
             );
 
             dbg!("created buffers!");
+
+            self.cached_terrain_mesh = Some(terrain_mesh)
         }
+
+        let mvp = MVP {
+            model: vec3(0.0, 0.0, 0.0),
+            view: camera.view(),
+            projection: camera.projection(),
+        };
 
         renderer.default_lit(
             mvp,
@@ -73,7 +82,7 @@ impl WorldRenderSystem {
         Ok(())
     }
 
-    fn build_terrain_mesh(&mut self, world: &World) -> Result<Box<dyn Mesh>, WorldRenderError> {
+    fn build_terrain_mesh(&mut self, world: &World) -> Result<StitchedMesh, WorldRenderError> {
         let mut terrain_mesh = StitchedMesh::default();
         for (chunk_position, chunk) in &world.chunks {
             if let None = self.chunk_mesh_cache.get(chunk_position) {
@@ -86,7 +95,7 @@ impl WorldRenderSystem {
             terrain_mesh.stich(chunk_mesh)
         }
 
-        Ok(Box::new(terrain_mesh))
+        Ok(terrain_mesh)
     }
 
     fn build_chunk_mesh(&self, world: &World, chunk: &Chunk) -> StitchedMesh {

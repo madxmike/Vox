@@ -51,7 +51,7 @@ fn main() {
     let mut last_render_tick_time = current_render_tick_time.clone();
     let mut delta_time = 0.0;
 
-    let camera_movement_speed = 20.0;
+    let camera_movement_speed = 50.0;
     let mut world_render_system = WorldRenderSystem::default();
     'running: loop {
         for event in event_pump.poll_iter() {
@@ -125,8 +125,8 @@ fn main() {
                 }
 
                 Event::MouseMotion { xrel, yrel, .. } => {
-                    camera.rotate_yaw((xrel as f32 * delta_time) * PI / 180.0);
-                    camera.rotate_pitch((yrel as f32 * delta_time) * PI / 180.0)
+                    camera.rotate_yaw((xrel as f32 * delta_time * 10.0) * PI / 180.0);
+                    camera.rotate_pitch((yrel as f32 * delta_time * 10.0) * PI / 180.0)
                 }
                 _ => {}
             }
@@ -141,5 +141,6 @@ fn main() {
 
         delta_time = ((current_render_tick_time - last_render_tick_time) as f32)
             / timer_subsystem.performance_frequency() as f32;
+        // dbg!(delta_time);
     }
 }

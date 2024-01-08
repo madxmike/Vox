@@ -1,5 +1,6 @@
 use glam::{Mat4, Vec3};
 
+#[derive(Clone, Copy, Debug)]
 pub struct MVP {
     pub model: Vec3,
     pub view: Mat4,

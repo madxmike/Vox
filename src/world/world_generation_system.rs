@@ -11,7 +11,7 @@ pub fn generate_world(_seed: u64) -> World {
     const NUM_CHUNKS: u32 = 10;
 
     let mut chunks: HashMap<BlockPosition, Chunk> = HashMap::new();
-    for x in 0..10 {
+    for x in 0..12 {
         for y in 0..10 {
             for z in 0..10 {
                 let origin_position = BlockPosition::new(
