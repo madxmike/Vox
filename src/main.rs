@@ -13,7 +13,10 @@ use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 
 use transform::Transform;
-use world::{chunk, world_generation_system};
+use world::{
+    chunk,
+    world_generation_system::{self, WorldGenerationSettings},
+};
 
 fn main() {
     let sdl_context = sdl2::init().unwrap();
@@ -44,7 +47,14 @@ fn main() {
         ..Camera::default()
     };
 
-    let world = world_generation_system::generate_world(10);
+    let world = world_generation_system::generate_world(
+        10,
+        WorldGenerationSettings {
+            max_width: 12,
+            max_height: 10,
+            max_length: 12,
+        },
+    );
 
     let timer_subsystem = sdl_context.timer().unwrap();
     let mut current_render_tick_time = timer_subsystem.performance_counter();

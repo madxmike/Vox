@@ -17,35 +17,22 @@ impl BlockPosition {
 
     pub fn to_chunk_origin(self) -> Self {
         let origin = BlockPosition::new(
-            self.x - (self.x.abs() % CHUNK_BLOCK_WIDTH as i32),
-            self.y - (self.y.abs() % CHUNK_BLOCK_HEIGHT as i32),
-            self.z - (self.z.abs() % CHUNK_BLOCK_DEPTH as i32),
+            self.x - self.x.rem_euclid(CHUNK_BLOCK_WIDTH as i32),
+            self.y - self.y.rem_euclid(CHUNK_BLOCK_HEIGHT as i32),
+            self.z - self.z.rem_euclid(CHUNK_BLOCK_DEPTH as i32),
         );
+        // dbg!(self);
+
+        // dbg!(origin);
         origin
     }
 
     pub fn to_chunk_local_position(self) -> Self {
-        let chunk_origin = self.clone().to_chunk_origin();
-
-        let local_x = if chunk_origin.x == 0 {
-            self.x.abs()
-        } else {
-            self.x % chunk_origin.x.abs()
-        };
-
-        let local_y = if chunk_origin.y == 0 {
-            self.y.abs()
-        } else {
-            self.y % chunk_origin.y
-        };
-
-        let local_z = if chunk_origin.z == 0 {
-            self.z.abs()
-        } else {
-            self.z % chunk_origin.z.abs()
-        };
-
-        BlockPosition::new(local_x, local_y, local_z)
+        BlockPosition::new(
+            self.x.abs() % CHUNK_BLOCK_WIDTH as i32,
+            self.y.abs() % CHUNK_BLOCK_HEIGHT as i32,
+            self.z.abs() % CHUNK_BLOCK_DEPTH as i32,
+        )
     }
 
     pub fn offset(&self, x: i32, y: i32, z: i32) -> Self {

@@ -125,12 +125,20 @@ impl WorldRenderSystem {
         block_position: BlockPosition,
     ) -> Option<RuntimeMesh> {
         if let None = world.get_block_at_position(block_position) {
+            dbg!(block_position);
+            assert!(1 == 2);
             return None;
         }
         let neighbors = world.get_neighbors(block_position);
         let mut block_mesh = RuntimeMesh::default();
         let block_position_vec3 = block_position.to_vec3();
+
+        let mut n = 0;
         for (direction, neighbor) in neighbors.iter() {
+            if let Some(x) = neighbor {
+                n += 1;
+                // dbg!(direction);
+            }
             match (direction, neighbor) {
                 (Direction::North, None) => {
                     block_mesh.add_quad(
@@ -202,6 +210,8 @@ impl WorldRenderSystem {
             }
         }
 
+        // dbg!(block_position);
+        // assert!(n > 1);
         Some(block_mesh)
     }
 }

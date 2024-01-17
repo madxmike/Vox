@@ -12,23 +12,15 @@ pub enum ChunkAccessorError {
 #[derive(Clone)]
 pub struct Chunk {
     origin_position: BlockPosition,
-    blocks: Vec<Block>,
+    pub blocks: [Block; CHUNK_SIZE],
 }
 
 impl Chunk {
     pub fn new(origin_position: BlockPosition) -> Self {
-        let mut chunk = Chunk {
+        Chunk {
             origin_position,
-            blocks: Vec::new(),
-        };
-
-        for i in 0..CHUNK_SIZE {
-            chunk.blocks.push(Block {
-                id: i as u16,
-                state: 0,
-            })
+            blocks: [Block { id: 0, state: 0 }; CHUNK_SIZE],
         }
-        chunk
     }
 
     pub fn origin_position(&self) -> BlockPosition {
@@ -63,11 +55,11 @@ impl Chunk {
             return Err(ChunkAccessorError::PositionNotWithinChunk(world_position));
         }
 
-        let chunk_local_position = world_position.to_chunk_local_position();
+        let chunk_local_position = world_position.to_chunk_local_position(); // 0, 0, 0
 
-        let position_idx = (chunk_local_position.x.abs()
-            + (chunk_local_position.y.abs() * CHUNK_BLOCK_WIDTH as i32)
-            + (chunk_local_position.z.abs() * CHUNK_BLOCK_WIDTH as i32 * CHUNK_BLOCK_HEIGHT as i32))
+        let position_idx = (chunk_local_position.x
+            + (chunk_local_position.y * CHUNK_BLOCK_WIDTH as i32)
+            + (chunk_local_position.z * CHUNK_BLOCK_WIDTH as i32 * CHUNK_BLOCK_HEIGHT as i32))
             as usize;
 
         Ok(self.blocks.get(position_idx))
