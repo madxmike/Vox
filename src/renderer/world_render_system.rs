@@ -5,21 +5,24 @@ use std::{
 };
 
 use glam::vec3;
-use vulkano::buffer::Subbuffer;
+use vulkano::buffer::{allocator::SubbufferAllocator, Subbuffer};
 
 use crate::{
     camera::Camera,
     chunk::{Chunk, CHUNK_BLOCK_DEPTH, CHUNK_BLOCK_HEIGHT, CHUNK_BLOCK_WIDTH},
-    mesh::{Mesh, RuntimeMesh, StitchedMesh, WindingDirection},
+    transform::Position,
     world::block_position::BlockPosition,
     world::direction::Direction,
     world::world::World,
 };
 
-use super::vulkan::{
-    default_lit_pipeline::{DefaultLitIndex, DefaultLitVertex},
-    mvp::MVP,
-    vulkan_renderer::VulkanRenderer,
+use super::{
+    mesh::{Mesh, WindingDirection},
+    vulkan::{
+        default_lit_pipeline::{DefaultLitIndex, MeshVertex},
+        mvp::MVP,
+        vulkan_renderer::VulkanRenderer,
+    },
 };
 
 #[derive(Debug)]
@@ -27,47 +30,65 @@ pub enum WorldRenderError {
     CouldNotBuildTerrainMesh,
 }
 
-#[derive(Default)]
 pub struct WorldRenderSystem {
-    chunk_mesh_cache: HashMap<BlockPosition, StitchedMesh>,
-    terrain_vertex_buffer: Option<Subbuffer<[DefaultLitVertex]>>,
-    terrain_index_buffer: Option<Subbuffer<[u32]>>,
-    cached_terrain_mesh: Option<StitchedMesh>,
+    opaque_chunk_meshes: Vec<Mesh>,
+    opaque_chunk_vertex_buffer: Subbuffer<[MeshVertex]>,
+    opaque_chunk_index_buffer: Subbuffer<[u32]>,
 }
 
 impl WorldRenderSystem {
+    pub fn new(renderer: &VulkanRenderer) -> Self {
+        WorldRenderSystem {
+            opaque_chunk_meshes: Default::default(),
+            opaque_chunk_vertex_buffer: renderer
+                .create_sized_vertex_buffer::<MeshVertex>(1024 * 1024 * 50)
+                .unwrap(),
+            opaque_chunk_index_buffer: renderer
+                .create_sized_index_buffer::<u32>(1024 * 1024 * 50)
+                .unwrap(),
+        }
+    }
+    pub fn build_chunk_meshes(&mut self, world: &World) {
+        for chunk in world.chunks.iter() {
+            let chunk_mesh = self.build_chunk_mesh(world, chunk.1);
+            if chunk_mesh.vertices().len() != 0 {
+                self.opaque_chunk_meshes.push(chunk_mesh);
+            }
+        }
+
+        self.write_meshes();
+    }
+
+    pub fn write_meshes(&mut self) {
+        let mut vertex_writer = self.opaque_chunk_vertex_buffer.write().unwrap();
+        let mut vertex_writer_iter = vertex_writer.iter_mut();
+
+        let mut index_offset = 0;
+        let mut index_writer = self.opaque_chunk_index_buffer.write().unwrap();
+        let mut index_writer_iter = index_writer.iter_mut();
+        for ocm in self.opaque_chunk_meshes.iter() {
+            for vertex in ocm.vertices() {
+                let existing =  vertex_writer_iter.next().expect("tried to write mesh to vertex buffer, but vertex buffer has no room available!");
+                *existing = *vertex;
+            }
+
+            for index in ocm.indicies() {
+                let existing = index_writer_iter.next().expect(
+                    "tried to write mesh to index buffer, but index buffer has no room available!",
+                );
+                *existing = *index + index_offset;
+            }
+
+            index_offset += ocm.vertices().len() as u32;
+        }
+    }
+
     pub fn render_world(
         &mut self,
         renderer: &mut VulkanRenderer,
         world: &World,
         camera: &Camera,
     ) -> Result<(), WorldRenderError> {
-        if let None = self.cached_terrain_mesh {
-            dbg!("rebuilding buffers");
-            let terrain_mesh = self.build_terrain_mesh(world)?;
-
-            self.terrain_vertex_buffer = Some(
-                renderer
-                    .create_vertex_buffer(terrain_mesh.verticies().iter().map(|vert| {
-                        DefaultLitVertex {
-                            position: vert.to_owned(),
-                            normal: [0.0, 0.0, 0.0],
-                        }
-                    }))
-                    .unwrap(),
-            );
-
-            self.terrain_index_buffer = Some(
-                renderer
-                    .create_index_buffer(terrain_mesh.indicies().iter().map(|idx| *idx))
-                    .unwrap(),
-            );
-
-            dbg!("created buffers!");
-
-            self.cached_terrain_mesh = Some(terrain_mesh)
-        }
-
         let mvp = MVP {
             model: vec3(0.0, 0.0, 0.0),
             view: camera.view(),
@@ -76,30 +97,14 @@ impl WorldRenderSystem {
 
         renderer.default_lit(
             mvp,
-            &self.terrain_vertex_buffer.as_ref().unwrap(),
-            &self.terrain_index_buffer.as_ref().unwrap(),
+            &self.opaque_chunk_vertex_buffer,
+            &self.opaque_chunk_index_buffer,
         );
         Ok(())
     }
 
-    fn build_terrain_mesh(&mut self, world: &World) -> Result<StitchedMesh, WorldRenderError> {
-        let mut terrain_mesh = StitchedMesh::default();
-        for (chunk_position, chunk) in &world.chunks {
-            if let None = self.chunk_mesh_cache.get(chunk_position) {
-                self.chunk_mesh_cache
-                    .insert(chunk_position.clone(), self.build_chunk_mesh(world, chunk));
-            }
-
-            let chunk_mesh = self.chunk_mesh_cache.get(chunk_position).unwrap();
-
-            terrain_mesh.stich(chunk_mesh)
-        }
-
-        Ok(terrain_mesh)
-    }
-
-    fn build_chunk_mesh(&self, world: &World, chunk: &Chunk) -> StitchedMesh {
-        let mut chunk_mesh = StitchedMesh::default();
+    fn build_chunk_mesh(&self, world: &World, chunk: &Chunk) -> Mesh {
+        let mut chunk_mesh = Mesh::default();
 
         let origin_position = chunk.origin_position();
 
@@ -107,11 +112,7 @@ impl WorldRenderSystem {
             for y in 0..CHUNK_BLOCK_HEIGHT {
                 for z in 0..CHUNK_BLOCK_DEPTH {
                     let block_position = origin_position.offset(x as i32, y as i32, z as i32);
-                    let block_mesh = self.build_block_mesh(world, block_position);
-                    if let None = block_mesh {
-                        continue;
-                    }
-                    chunk_mesh.stich(&block_mesh.unwrap());
+                    self.build_block_mesh(world, &mut chunk_mesh, block_position);
                 }
             }
         }
@@ -119,18 +120,12 @@ impl WorldRenderSystem {
         chunk_mesh
     }
 
-    fn build_block_mesh(
-        &self,
-        world: &World,
-        block_position: BlockPosition,
-    ) -> Option<RuntimeMesh> {
+    fn build_block_mesh(&self, world: &World, mesh: &mut Mesh, block_position: BlockPosition) {
         if let None = world.get_block_at_position(block_position) {
-            dbg!(block_position);
-            assert!(1 == 2);
-            return None;
+            return;
         }
+
         let neighbors = world.get_neighbors(block_position);
-        let mut block_mesh = RuntimeMesh::default();
         let block_position_vec3 = block_position.to_vec3();
 
         let mut n = 0;
@@ -141,7 +136,7 @@ impl WorldRenderSystem {
             }
             match (direction, neighbor) {
                 (Direction::North, None) => {
-                    block_mesh.add_quad(
+                    mesh.add_quad(
                         [
                             glam::vec3(1.0, 0.0, 1.0) + block_position_vec3,
                             glam::vec3(0.0, 0.0, 1.0) + block_position_vec3,
@@ -152,7 +147,7 @@ impl WorldRenderSystem {
                     );
                 }
                 (Direction::South, None) => {
-                    block_mesh.add_quad(
+                    mesh.add_quad(
                         [
                             glam::vec3(0.0, 0.0, 0.0) + block_position_vec3,
                             glam::vec3(1.0, 0.0, 0.0) + block_position_vec3,
@@ -163,7 +158,7 @@ impl WorldRenderSystem {
                     );
                 }
                 (Direction::East, None) => {
-                    block_mesh.add_quad(
+                    mesh.add_quad(
                         [
                             glam::vec3(0.0, 0.0, 1.0) + block_position_vec3,
                             glam::vec3(0.0, 0.0, 0.0) + block_position_vec3,
@@ -174,7 +169,7 @@ impl WorldRenderSystem {
                     );
                 }
                 (Direction::West, None) => {
-                    block_mesh.add_quad(
+                    mesh.add_quad(
                         [
                             glam::vec3(1.0, 0.0, 0.0) + block_position_vec3,
                             glam::vec3(1.0, 0.0, 1.0) + block_position_vec3,
@@ -185,7 +180,7 @@ impl WorldRenderSystem {
                     );
                 }
                 (Direction::Up, None) => {
-                    block_mesh.add_quad(
+                    mesh.add_quad(
                         [
                             glam::vec3(0.0, 1.0, 0.0) + block_position_vec3,
                             glam::vec3(1.0, 1.0, 0.0) + block_position_vec3,
@@ -196,7 +191,7 @@ impl WorldRenderSystem {
                     );
                 }
                 (Direction::Down, None) => {
-                    block_mesh.add_quad(
+                    mesh.add_quad(
                         [
                             glam::vec3(0.0, 0.0, 0.0) + block_position_vec3,
                             glam::vec3(1.0, 0.0, 0.0) + block_position_vec3,
@@ -209,9 +204,5 @@ impl WorldRenderSystem {
                 (_, Some(_)) => {}
             }
         }
-
-        // dbg!(block_position);
-        // assert!(n > 1);
-        Some(block_mesh)
     }
 }

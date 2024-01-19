@@ -14,8 +14,6 @@ pub struct WorldGenerationSettings {
 }
 
 pub fn generate_world(_seed: u64, settings: WorldGenerationSettings) -> World {
-    const NUM_CHUNKS: u32 = 10;
-
     let mut chunks: HashMap<BlockPosition, Chunk> = HashMap::new();
     for x in -settings.max_width..settings.max_width {
         for y in 0..settings.max_height {

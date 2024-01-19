@@ -31,13 +31,11 @@ use vulkano::{
         future::{FenceSignalFuture, JoinFuture},
         GpuFuture,
     },
-    Handle, Validated, VulkanError, VulkanLibrary, VulkanObject,
+    DeviceSize, Handle, Validated, VulkanError, VulkanLibrary, VulkanObject,
 };
 
-use crate::{camera::Camera, mesh::Mesh};
-
 use super::{
-    default_lit_pipeline::{DefaultLitIndex, DefaultLitPipeline, DefaultLitVertex},
+    default_lit_pipeline::{DefaultLitIndex, DefaultLitPipeline, MeshVertex},
     mvp::MVP,
 };
 
@@ -301,6 +299,28 @@ impl VulkanRenderer {
         )
     }
 
+    pub fn create_sized_vertex_buffer<T>(
+        &self,
+        bytes: u64,
+    ) -> Result<vulkano::buffer::Subbuffer<[T]>, Validated<vulkano::buffer::AllocateBufferError>>
+    where
+        T: BufferContents,
+    {
+        Buffer::new_slice(
+            self.memory_allocator.clone(),
+            BufferCreateInfo {
+                usage: BufferUsage::VERTEX_BUFFER,
+                ..Default::default()
+            },
+            AllocationCreateInfo {
+                memory_type_filter: MemoryTypeFilter::PREFER_DEVICE
+                    | MemoryTypeFilter::HOST_SEQUENTIAL_WRITE,
+                ..Default::default()
+            },
+            bytes,
+        )
+    }
+
     pub fn create_index_buffer<T, I>(
         &mut self,
         indicies: I,
@@ -325,10 +345,32 @@ impl VulkanRenderer {
         )
     }
 
+    pub fn create_sized_index_buffer<T>(
+        &self,
+        bytes: u64,
+    ) -> Result<vulkano::buffer::Subbuffer<[T]>, Validated<vulkano::buffer::AllocateBufferError>>
+    where
+        T: BufferContents,
+    {
+        Buffer::new_slice(
+            self.memory_allocator.clone(),
+            BufferCreateInfo {
+                usage: BufferUsage::INDEX_BUFFER,
+                ..Default::default()
+            },
+            AllocationCreateInfo {
+                memory_type_filter: MemoryTypeFilter::PREFER_DEVICE
+                    | MemoryTypeFilter::HOST_SEQUENTIAL_WRITE,
+                ..Default::default()
+            },
+            bytes,
+        )
+    }
+
     pub fn default_lit(
         &mut self,
         mvp: MVP,
-        vertex_buffer: &Subbuffer<[DefaultLitVertex]>,
+        vertex_buffer: &Subbuffer<[MeshVertex]>,
         index_buffer: &Subbuffer<[u32]>,
     ) {
         let descriptor_set = self

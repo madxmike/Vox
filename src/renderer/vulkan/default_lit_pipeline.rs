@@ -53,13 +53,11 @@ pub mod fs {
     }
 }
 
-#[derive(BufferContents, Vertex, Debug)]
+#[derive(BufferContents, Vertex, Debug, Clone, Copy)]
 #[repr(C)]
-pub struct DefaultLitVertex {
+pub struct MeshVertex {
     #[format(R32G32B32_SFLOAT)]
     pub position: [f32; 3],
-    #[format(R32G32B32_SFLOAT)]
-    pub normal: [f32; 3],
 }
 
 #[derive(BufferContents)]
@@ -90,8 +88,7 @@ impl DefaultLitPipeline {
             depth_range: 0.0..=1.0,
         };
 
-        let vertex_input_state =
-            DefaultLitVertex::per_vertex().definition(&vs.info().input_interface)?;
+        let vertex_input_state = MeshVertex::per_vertex().definition(&vs.info().input_interface)?;
 
         let stages = [
             PipelineShaderStageCreateInfo::new(vs.clone()),
@@ -122,7 +119,7 @@ impl DefaultLitPipeline {
                     ..Default::default()
                 }),
                 rasterization_state: Some(RasterizationState {
-                    polygon_mode: PolygonMode::Line,
+                    polygon_mode: PolygonMode::Fill,
                     cull_mode: CullMode::Back,
                     front_face: FrontFace::Clockwise,
                     ..Default::default()
@@ -159,7 +156,7 @@ impl DefaultLitPipeline {
         &self,
         command_buffer_allocator: &StandardCommandBufferAllocator,
         queue: Arc<Queue>,
-        verticies: &Subbuffer<[DefaultLitVertex]>,
+        verticies: &Subbuffer<[MeshVertex]>,
         indicies: &Subbuffer<[u32]>,
         descriptor_set: Arc<PersistentDescriptorSet>,
     ) -> Result<Vec<Arc<PrimaryAutoCommandBuffer>>, Validated<VulkanError>> {

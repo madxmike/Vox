@@ -1,6 +1,4 @@
 mod camera;
-mod cube_mesh;
-mod mesh;
 mod renderer;
 mod transform;
 mod world;
@@ -50,9 +48,9 @@ fn main() {
     let world = world_generation_system::generate_world(
         10,
         WorldGenerationSettings {
-            max_width: 12,
-            max_height: 10,
-            max_length: 12,
+            max_width: 5,
+            max_height: 5,
+            max_length: 5,
         },
     );
 
@@ -61,8 +59,9 @@ fn main() {
     let mut last_render_tick_time = current_render_tick_time.clone();
     let mut delta_time = 0.0;
 
-    let camera_movement_speed = 50.0;
-    let mut world_render_system = WorldRenderSystem::default();
+    let camera_movement_speed = 250.0;
+    let mut world_render_system = WorldRenderSystem::new(&renderer);
+    world_render_system.build_chunk_meshes(&world);
     'running: loop {
         for event in event_pump.poll_iter() {
             match event {
