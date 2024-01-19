@@ -1,5 +1,7 @@
 use std::collections::HashMap;
 
+use crate::renderer::world_render_system::WorldRenderSystem;
+
 use super::{block::Block, block_position::BlockPosition, chunk::Chunk, direction::Direction};
 
 pub struct World {

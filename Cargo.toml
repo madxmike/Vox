@@ -12,6 +12,9 @@ vulkano-shaders = "0.34.0"
 glam = "0.25.0"
 strum = "0.25.0"
 strum_macros = "0.25.3"
+rayon = "1.8.1"
+tokio = { version = "1", features = ["full"] }
+tokio-rayon = "2.1.0"
 
 [profile.release]
 debug = true

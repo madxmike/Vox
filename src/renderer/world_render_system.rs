@@ -1,32 +1,21 @@
-
+use std::{collections::HashMap, time::Instant};
 
 use glam::vec3;
-use vulkano::buffer::{Subbuffer};
+use vulkano::buffer::Subbuffer;
 
+use crate::world::chunk::{Chunk, CHUNK_BLOCK_DEPTH, CHUNK_BLOCK_HEIGHT, CHUNK_BLOCK_WIDTH};
 use crate::{
-    camera::Camera,
-    chunk::{Chunk, CHUNK_BLOCK_DEPTH, CHUNK_BLOCK_HEIGHT, CHUNK_BLOCK_WIDTH},
-    world::block_position::BlockPosition,
-    world::direction::Direction,
+    camera::Camera, world::block_position::BlockPosition, world::direction::Direction,
     world::world::World,
 };
 
 use super::{
     mesh::{Mesh, WindingDirection},
-    vulkan::{
-        default_lit_pipeline::{MeshVertex},
-        mvp::MVP,
-        vulkan_renderer::VulkanRenderer,
-    },
+    vulkan::{default_lit_pipeline::MeshVertex, mvp::MVP, vulkan_renderer::VulkanRenderer},
 };
 
-#[derive(Debug)]
-pub enum WorldRenderError {
-    CouldNotBuildTerrainMesh,
-}
-
 pub struct WorldRenderSystem {
-    opaque_chunk_meshes: Vec<Mesh>,
+    opaque_chunk_meshes: HashMap<BlockPosition, Mesh>,
     opaque_chunk_vertex_buffer: Subbuffer<[MeshVertex]>,
     opaque_chunk_index_buffer: Subbuffer<[u32]>,
 }
@@ -44,11 +33,16 @@ impl WorldRenderSystem {
         }
     }
     pub fn build_chunk_meshes(&mut self, world: &World) {
-        for chunk in world.chunks.iter() {
-            let chunk_mesh = self.build_chunk_mesh(world, chunk.1);
+        for (chunk_origin_pos, chunk) in world.chunks.iter() {
+            let start = Instant::now();
+            let chunk_mesh = self.build_chunk_mesh(world, chunk);
             if chunk_mesh.vertices().len() != 0 {
-                self.opaque_chunk_meshes.push(chunk_mesh);
+                self.opaque_chunk_meshes
+                    .insert(*chunk_origin_pos, chunk_mesh);
             }
+            let duration = start.elapsed();
+
+            println!("Time spent to build chunk () is: {:?}", duration);
         }
 
         self.write_meshes();
@@ -61,7 +55,7 @@ impl WorldRenderSystem {
         let mut index_offset = 0;
         let mut index_writer = self.opaque_chunk_index_buffer.write().unwrap();
         let mut index_writer_iter = index_writer.iter_mut();
-        for ocm in self.opaque_chunk_meshes.iter() {
+        for (_, ocm) in self.opaque_chunk_meshes.iter() {
             for vertex in ocm.vertices() {
                 let existing =  vertex_writer_iter.next().expect("tried to write mesh to vertex buffer, but vertex buffer has no room available!");
                 *existing = *vertex;
@@ -78,12 +72,7 @@ impl WorldRenderSystem {
         }
     }
 
-    pub fn render_world(
-        &mut self,
-        renderer: &mut VulkanRenderer,
-        _world: &World,
-        camera: &Camera,
-    ) -> Result<(), WorldRenderError> {
+    pub fn render_world(&mut self, renderer: &mut VulkanRenderer, _world: &World, camera: &Camera) {
         let mvp = MVP {
             model: vec3(0.0, 0.0, 0.0),
             view: camera.view(),
@@ -95,7 +84,6 @@ impl WorldRenderSystem {
             &self.opaque_chunk_vertex_buffer,
             &self.opaque_chunk_index_buffer,
         );
-        Ok(())
     }
 
     fn build_chunk_mesh(&self, world: &World, chunk: &Chunk) -> Mesh {
@@ -119,16 +107,10 @@ impl WorldRenderSystem {
         if let None = world.get_block_at_position(block_position) {
             return;
         }
-
         let neighbors = world.get_neighbors(block_position);
         let block_position_vec3 = block_position.to_vec3();
 
-        let mut n = 0;
         for (direction, neighbor) in neighbors.iter() {
-            if let Some(_x) = neighbor {
-                n += 1;
-                // dbg!(direction);
-            }
             match (direction, neighbor) {
                 (Direction::North, None) => {
                     mesh.add_quad(

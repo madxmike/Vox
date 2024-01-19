@@ -1,16 +1,10 @@
-use std::{
-    sync::Arc,
-};
+use std::sync::Arc;
 
 use sdl2::video::Window;
 use vulkano::{
-    buffer::{
-        Buffer, BufferContents, BufferCreateInfo, BufferUsage, Subbuffer,
-    },
+    buffer::{Buffer, BufferContents, BufferCreateInfo, BufferUsage, Subbuffer},
     command_buffer::{allocator::StandardCommandBufferAllocator, CommandBufferExecFuture},
-    descriptor_set::{
-        allocator::StandardDescriptorSetAllocator,
-    },
+    descriptor_set::allocator::StandardDescriptorSetAllocator,
     device::{
         physical::{PhysicalDevice, PhysicalDeviceType},
         Device, DeviceCreateInfo, DeviceExtensions, Features, Queue, QueueCreateInfo, QueueFlags,
@@ -26,7 +20,8 @@ use vulkano::{
         self,
         future::{FenceSignalFuture, JoinFuture},
         GpuFuture,
-    }, Handle, Validated, VulkanLibrary, VulkanObject,
+    },
+    Handle, Validated, VulkanLibrary, VulkanObject,
 };
 
 use super::{
