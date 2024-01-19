@@ -1,11 +1,11 @@
-use std::{borrow::Borrow, collections::HashMap};
+use std::collections::HashMap;
 
 use crate::world::{
     block_position::BlockPosition,
     chunk::{Chunk, CHUNK_BLOCK_DEPTH, CHUNK_BLOCK_HEIGHT, CHUNK_BLOCK_WIDTH},
 };
 
-use super::{block::Block, world::World};
+use super::world::World;
 
 pub struct WorldGenerationSettings {
     pub max_width: i32,

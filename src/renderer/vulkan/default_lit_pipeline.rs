@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use glam::Mat4;
+
 use vulkano::{
     buffer::{
         allocator::{SubbufferAllocator, SubbufferAllocatorCreateInfo},
@@ -11,7 +11,7 @@ use vulkano::{
         PrimaryAutoCommandBuffer, RenderPassBeginInfo, SubpassBeginInfo,
     },
     descriptor_set::{
-        allocator::{DescriptorSetAllocator, StandardDescriptorSetAllocator},
+        allocator::{StandardDescriptorSetAllocator},
         PersistentDescriptorSet, WriteDescriptorSet,
     },
     device::{Device, Queue},
@@ -34,7 +34,7 @@ use vulkano::{
     },
     render_pass::{Framebuffer, FramebufferCreateInfo, RenderPass, Subpass},
     swapchain::Swapchain,
-    Validated, ValidationError, VulkanError,
+    Validated, VulkanError,
 };
 
 use super::mvp::MVP;

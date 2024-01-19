@@ -1,19 +1,15 @@
 use std::{
-    future::{self, IntoFuture},
-    iter::zip,
     sync::Arc,
 };
 
 use sdl2::video::Window;
 use vulkano::{
     buffer::{
-        allocator::{SubbufferAllocator, SubbufferAllocatorCreateInfo},
         Buffer, BufferContents, BufferCreateInfo, BufferUsage, Subbuffer,
     },
     command_buffer::{allocator::StandardCommandBufferAllocator, CommandBufferExecFuture},
     descriptor_set::{
-        self, allocator::StandardDescriptorSetAllocator, PersistentDescriptorSet,
-        WriteDescriptorSet,
+        allocator::StandardDescriptorSetAllocator,
     },
     device::{
         physical::{PhysicalDevice, PhysicalDeviceType},
@@ -30,12 +26,11 @@ use vulkano::{
         self,
         future::{FenceSignalFuture, JoinFuture},
         GpuFuture,
-    },
-    DeviceSize, Handle, Validated, VulkanError, VulkanLibrary, VulkanObject,
+    }, Handle, Validated, VulkanLibrary, VulkanObject,
 };
 
 use super::{
-    default_lit_pipeline::{DefaultLitIndex, DefaultLitPipeline, MeshVertex},
+    default_lit_pipeline::{DefaultLitPipeline, MeshVertex},
     mvp::MVP,
 };
 

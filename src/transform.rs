@@ -1,4 +1,4 @@
-use glam::{vec3, Mat4, Quat, Vec3};
+use glam::{vec3, Quat, Vec3};
 
 pub type Position = glam::Vec3;
 pub type Rotation = glam::Quat;

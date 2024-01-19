@@ -1,16 +1,11 @@
-use std::{
-    borrow::{Borrow, BorrowMut},
-    collections::HashMap,
-    sync::Arc,
-};
+
 
 use glam::vec3;
-use vulkano::buffer::{allocator::SubbufferAllocator, Subbuffer};
+use vulkano::buffer::{Subbuffer};
 
 use crate::{
     camera::Camera,
     chunk::{Chunk, CHUNK_BLOCK_DEPTH, CHUNK_BLOCK_HEIGHT, CHUNK_BLOCK_WIDTH},
-    transform::Position,
     world::block_position::BlockPosition,
     world::direction::Direction,
     world::world::World,
@@ -19,7 +14,7 @@ use crate::{
 use super::{
     mesh::{Mesh, WindingDirection},
     vulkan::{
-        default_lit_pipeline::{DefaultLitIndex, MeshVertex},
+        default_lit_pipeline::{MeshVertex},
         mvp::MVP,
         vulkan_renderer::VulkanRenderer,
     },
@@ -86,7 +81,7 @@ impl WorldRenderSystem {
     pub fn render_world(
         &mut self,
         renderer: &mut VulkanRenderer,
-        world: &World,
+        _world: &World,
         camera: &Camera,
     ) -> Result<(), WorldRenderError> {
         let mvp = MVP {
@@ -130,7 +125,7 @@ impl WorldRenderSystem {
 
         let mut n = 0;
         for (direction, neighbor) in neighbors.iter() {
-            if let Some(x) = neighbor {
+            if let Some(_x) = neighbor {
                 n += 1;
                 // dbg!(direction);
             }
