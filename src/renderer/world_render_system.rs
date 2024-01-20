@@ -1,4 +1,5 @@
-use std::sync::mpsc::channel;
+use std::ops::Deref;
+use std::sync::mpsc::{channel, Receiver};
 use std::{collections::HashMap, time::Instant};
 
 use glam::vec3;
@@ -7,19 +8,25 @@ use rayon::iter::{
 };
 use tokio::sync::RwLock;
 use vulkano::buffer::Subbuffer;
+use vulkano::sync::HostAccessError;
 
+use crate::world::block::Block;
 use crate::world::chunk::{Chunk, CHUNK_BLOCK_DEPTH, CHUNK_BLOCK_HEIGHT, CHUNK_BLOCK_WIDTH};
+use crate::world::{block_position, chunk};
 use crate::{
     camera::Camera, world::block_position::BlockPosition, world::direction::Direction,
     world::world::World,
 };
 
+use super::chunk_mesher::ChunkMesher;
 use super::{
     mesh::{Mesh, WindingDirection},
     vulkan::{default_lit_pipeline::MeshVertex, mvp::MVP, vulkan_renderer::VulkanRenderer},
 };
 
 pub struct WorldRenderSystem {
+    chunk_mesher: ChunkMesher,
+
     opaque_chunk_meshes: HashMap<BlockPosition, Mesh>,
     opaque_chunk_vertex_buffer: Subbuffer<[MeshVertex]>,
     opaque_chunk_index_buffer: Subbuffer<[u32]>,
@@ -28,6 +35,7 @@ pub struct WorldRenderSystem {
 impl WorldRenderSystem {
     pub fn new(renderer: &VulkanRenderer) -> Self {
         WorldRenderSystem {
+            chunk_mesher: ChunkMesher::new(),
             opaque_chunk_meshes: Default::default(),
             opaque_chunk_vertex_buffer: renderer
                 .create_sized_vertex_buffer::<MeshVertex>(1024 * 1024 * 50)
@@ -38,29 +46,20 @@ impl WorldRenderSystem {
         }
     }
     pub fn build_chunk_meshes(&mut self, world: &World) {
-        let chunk_meshes: Vec<(BlockPosition, Mesh)> = world
-            .chunks
-            .iter()
-            .par_bridge()
-            .map(|(chunk_origin_pos, chunk)| {
-                let chunk_mesh = self.build_chunk_mesh(world, chunk);
-                (*chunk_origin_pos, chunk_mesh)
-            })
-            .collect();
-
-        for (chunk_origin_pos, chunk) in chunk_meshes {
-            self.opaque_chunk_meshes.insert(chunk_origin_pos, chunk);
+        for (_, chunk) in world.chunks.iter() {
+            self.chunk_mesher.begin_meshing_chunk(chunk.to_owned())
         }
-        self.write_meshes();
     }
 
-    pub fn write_meshes(&mut self) {
-        let mut vertex_writer = self.opaque_chunk_vertex_buffer.write().unwrap();
+    pub fn write_meshes(&mut self) -> Result<(), HostAccessError> {
+        let mut vertex_writer = self.opaque_chunk_vertex_buffer.write()?;
+        let mut index_writer = self.opaque_chunk_index_buffer.write()?;
+
         let mut vertex_writer_iter = vertex_writer.iter_mut();
+        let mut index_writer_iter = index_writer.iter_mut();
 
         let mut index_offset = 0;
-        let mut index_writer = self.opaque_chunk_index_buffer.write().unwrap();
-        let mut index_writer_iter = index_writer.iter_mut();
+
         for (_, ocm) in self.opaque_chunk_meshes.iter() {
             for vertex in ocm.vertices() {
                 let existing =  vertex_writer_iter.next().expect("tried to write mesh to vertex buffer, but vertex buffer has no room available!");
@@ -76,9 +75,20 @@ impl WorldRenderSystem {
 
             index_offset += ocm.vertices().len() as u32;
         }
+
+        Ok(())
     }
 
     pub fn render_world(&mut self, renderer: &mut VulkanRenderer, _world: &World, camera: &Camera) {
+        let chunk_meshes = self.chunk_mesher.ready_chunk_meshes();
+        for (chunk_origin_pos, chunk_mesh) in chunk_meshes {
+            self.opaque_chunk_meshes
+                .insert(chunk_origin_pos, chunk_mesh);
+        }
+
+        // TODO (Michael): We have to uncouple the buffers on the gpu and cpu, otherwise this can only be written too once
+        self.write_meshes();
+
         let mvp = MVP {
             model: vec3(0.0, 0.0, 0.0),
             view: camera.view(),
@@ -90,102 +100,5 @@ impl WorldRenderSystem {
             &self.opaque_chunk_vertex_buffer,
             &self.opaque_chunk_index_buffer,
         );
-    }
-
-    fn build_chunk_mesh(&self, world: &World, chunk: &Chunk) -> Mesh {
-        let mut chunk_mesh = Mesh::default();
-
-        let origin_position = chunk.origin_position();
-
-        for x in 0..CHUNK_BLOCK_WIDTH {
-            for y in 0..CHUNK_BLOCK_HEIGHT {
-                for z in 0..CHUNK_BLOCK_DEPTH {
-                    let block_position = origin_position.offset(x as i32, y as i32, z as i32);
-                    self.build_block_mesh(world, &mut chunk_mesh, block_position);
-                }
-            }
-        }
-
-        chunk_mesh
-    }
-
-    fn build_block_mesh(&self, world: &World, mesh: &mut Mesh, block_position: BlockPosition) {
-        if let None = world.get_block_at_position(block_position) {
-            return;
-        }
-        let neighbors = world.get_neighbors(block_position);
-        let block_position_vec3 = block_position.to_vec3();
-
-        for (direction, neighbor) in neighbors.iter() {
-            match (direction, neighbor) {
-                (Direction::North, None) => {
-                    mesh.add_quad(
-                        [
-                            glam::vec3(1.0, 0.0, 1.0) + block_position_vec3,
-                            glam::vec3(0.0, 0.0, 1.0) + block_position_vec3,
-                            glam::vec3(0.0, 1.0, 1.0) + block_position_vec3,
-                            glam::vec3(1.0, 1.0, 1.0) + block_position_vec3,
-                        ],
-                        WindingDirection::Clockwise,
-                    );
-                }
-                (Direction::South, None) => {
-                    mesh.add_quad(
-                        [
-                            glam::vec3(0.0, 0.0, 0.0) + block_position_vec3,
-                            glam::vec3(1.0, 0.0, 0.0) + block_position_vec3,
-                            glam::vec3(1.0, 1.0, 0.0) + block_position_vec3,
-                            glam::vec3(0.0, 1.0, 0.0) + block_position_vec3,
-                        ],
-                        WindingDirection::Clockwise,
-                    );
-                }
-                (Direction::East, None) => {
-                    mesh.add_quad(
-                        [
-                            glam::vec3(0.0, 0.0, 1.0) + block_position_vec3,
-                            glam::vec3(0.0, 0.0, 0.0) + block_position_vec3,
-                            glam::vec3(0.0, 1.0, 0.0) + block_position_vec3,
-                            glam::vec3(0.0, 1.0, 1.0) + block_position_vec3,
-                        ],
-                        WindingDirection::Clockwise,
-                    );
-                }
-                (Direction::West, None) => {
-                    mesh.add_quad(
-                        [
-                            glam::vec3(1.0, 0.0, 0.0) + block_position_vec3,
-                            glam::vec3(1.0, 0.0, 1.0) + block_position_vec3,
-                            glam::vec3(1.0, 1.0, 1.0) + block_position_vec3,
-                            glam::vec3(1.0, 1.0, 0.0) + block_position_vec3,
-                        ],
-                        WindingDirection::Clockwise,
-                    );
-                }
-                (Direction::Up, None) => {
-                    mesh.add_quad(
-                        [
-                            glam::vec3(0.0, 1.0, 0.0) + block_position_vec3,
-                            glam::vec3(1.0, 1.0, 0.0) + block_position_vec3,
-                            glam::vec3(1.0, 1.0, 1.0) + block_position_vec3,
-                            glam::vec3(0.0, 1.0, 1.0) + block_position_vec3,
-                        ],
-                        WindingDirection::Clockwise,
-                    );
-                }
-                (Direction::Down, None) => {
-                    mesh.add_quad(
-                        [
-                            glam::vec3(0.0, 0.0, 0.0) + block_position_vec3,
-                            glam::vec3(1.0, 0.0, 0.0) + block_position_vec3,
-                            glam::vec3(1.0, 0.0, 1.0) + block_position_vec3,
-                            glam::vec3(0.0, 0.0, 1.0) + block_position_vec3,
-                        ],
-                        WindingDirection::CounterClockwise,
-                    );
-                }
-                (_, Some(_)) => {}
-            }
-        }
     }
 }

@@ -11,6 +11,7 @@ pub enum ChunkAccessorError {
     PositionNotWithinChunk(BlockPosition),
 }
 
+#[derive(Clone, Copy)]
 pub struct Chunk {
     origin_position: BlockPosition,
     pub blocks: [Block; CHUNK_SIZE],
