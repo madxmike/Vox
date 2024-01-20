@@ -1,3 +1,5 @@
+use tokio::sync::RwLock;
+
 use super::{block::Block, block_position::BlockPosition};
 
 pub const CHUNK_BLOCK_WIDTH: usize = 16;
@@ -9,7 +11,6 @@ pub enum ChunkAccessorError {
     PositionNotWithinChunk(BlockPosition),
 }
 
-#[derive(Clone)]
 pub struct Chunk {
     origin_position: BlockPosition,
     pub blocks: [Block; CHUNK_SIZE],
@@ -19,7 +20,7 @@ impl Chunk {
     pub fn new(origin_position: BlockPosition) -> Self {
         Chunk {
             origin_position,
-            blocks: [Block { id: 0, state: 0 }; CHUNK_SIZE],
+            blocks: [Block { id: 1, state: 0 }; CHUNK_SIZE],
         }
     }
 
@@ -43,6 +44,17 @@ impl Chunk {
         Chunk::local_block_position(block_index) + self.origin_position
     }
 
+    pub fn set_block_at_position(&mut self, world_position: BlockPosition, block: Block) {
+        let chunk_local_position = world_position.to_chunk_local_position(); // 0, 0, 0
+
+        let position_idx = (chunk_local_position.x
+            + (chunk_local_position.y * CHUNK_BLOCK_WIDTH as i32)
+            + (chunk_local_position.z * CHUNK_BLOCK_WIDTH as i32 * CHUNK_BLOCK_HEIGHT as i32))
+            as usize;
+
+        self.blocks[position_idx] = block;
+    }
+
     /// Gets the block at the position, if one exists.
     /// If the position is not within this chunk, then this returns `None`
     /// If the block is air then this returns `None`.
@@ -50,7 +62,7 @@ impl Chunk {
     pub fn get_block_at_position(
         &self,
         world_position: BlockPosition,
-    ) -> Result<Option<&Block>, ChunkAccessorError> {
+    ) -> Result<Option<Block>, ChunkAccessorError> {
         if !self.is_world_position_within(world_position) {
             return Err(ChunkAccessorError::PositionNotWithinChunk(world_position));
         }
@@ -62,7 +74,12 @@ impl Chunk {
             + (chunk_local_position.z * CHUNK_BLOCK_WIDTH as i32 * CHUNK_BLOCK_HEIGHT as i32))
             as usize;
 
-        Ok(self.blocks.get(position_idx))
+        let block = self.blocks[position_idx];
+        if block.is_air() {
+            return Ok(None);
+        }
+
+        Ok(Some(block))
     }
 
     pub fn is_world_position_within(&self, world_position: BlockPosition) -> bool {

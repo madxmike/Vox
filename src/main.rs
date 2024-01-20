@@ -2,7 +2,7 @@ mod camera;
 mod renderer;
 mod transform;
 mod world;
-use std::f32::consts::PI;
+use std::{f32::consts::PI, ops::Deref};
 
 use camera::Camera;
 use renderer::vulkan::vulkan_renderer::VulkanRenderer;
@@ -11,7 +11,12 @@ use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 
 use transform::Transform;
-use world::world_generation_system::{self, WorldGenerationSettings};
+use world::{
+    block::Block,
+    block_position::BlockPosition,
+    chunk,
+    world_generation_system::{self, WorldGenerationSettings},
+};
 
 fn main() {
     let sdl_context = sdl2::init().unwrap();
@@ -42,7 +47,7 @@ fn main() {
         ..Camera::default()
     };
 
-    let world = world_generation_system::generate_world(
+    let mut world = world_generation_system::generate_world(
         10,
         WorldGenerationSettings {
             max_width: 10,
@@ -58,6 +63,7 @@ fn main() {
 
     let camera_movement_speed = 250.0;
     let mut world_render_system = WorldRenderSystem::new(&renderer);
+    let mut flip = 0;
     world_render_system.build_chunk_meshes(&world);
     'running: loop {
         for event in event_pump.poll_iter() {

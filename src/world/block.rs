@@ -40,6 +40,10 @@ impl Block {
 
     //     }
     // }
+
+    pub fn is_air(&self) -> bool {
+        self.id == 0
+    }
 }
 
 impl Default for Block {

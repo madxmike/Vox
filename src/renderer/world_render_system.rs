@@ -1,6 +1,11 @@
+use std::sync::mpsc::channel;
 use std::{collections::HashMap, time::Instant};
 
 use glam::vec3;
+use rayon::iter::{
+    IntoParallelIterator, IntoParallelRefIterator, ParallelBridge, ParallelIterator,
+};
+use tokio::sync::RwLock;
 use vulkano::buffer::Subbuffer;
 
 use crate::world::chunk::{Chunk, CHUNK_BLOCK_DEPTH, CHUNK_BLOCK_HEIGHT, CHUNK_BLOCK_WIDTH};
@@ -33,18 +38,19 @@ impl WorldRenderSystem {
         }
     }
     pub fn build_chunk_meshes(&mut self, world: &World) {
-        for (chunk_origin_pos, chunk) in world.chunks.iter() {
-            let start = Instant::now();
-            let chunk_mesh = self.build_chunk_mesh(world, chunk);
-            if chunk_mesh.vertices().len() != 0 {
-                self.opaque_chunk_meshes
-                    .insert(*chunk_origin_pos, chunk_mesh);
-            }
-            let duration = start.elapsed();
+        let chunk_meshes: Vec<(BlockPosition, Mesh)> = world
+            .chunks
+            .iter()
+            .par_bridge()
+            .map(|(chunk_origin_pos, chunk)| {
+                let chunk_mesh = self.build_chunk_mesh(world, chunk);
+                (*chunk_origin_pos, chunk_mesh)
+            })
+            .collect();
 
-            println!("Time spent to build chunk () is: {:?}", duration);
+        for (chunk_origin_pos, chunk) in chunk_meshes {
+            self.opaque_chunk_meshes.insert(chunk_origin_pos, chunk);
         }
-
         self.write_meshes();
     }
 
