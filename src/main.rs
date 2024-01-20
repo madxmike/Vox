@@ -63,7 +63,6 @@ fn main() {
 
     let camera_movement_speed = 250.0;
     let mut world_render_system = WorldRenderSystem::new(&renderer);
-    let mut flip = 0;
     world_render_system.build_chunk_meshes(&world);
     'running: loop {
         for event in event_pump.poll_iter() {

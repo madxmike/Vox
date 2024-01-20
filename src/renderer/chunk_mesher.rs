@@ -27,14 +27,18 @@ impl ChunkMesher {
         let tx = self.ready_chunk_meshes_tx.clone();
         tokio_rayon::spawn(move || {
             let chunk_mesh = ChunkMesher::mesh_chunk(chunk);
-            tx.send((chunk.origin_position(), chunk_mesh));
+
+            if !chunk_mesh.is_empty() {
+                tx.send((chunk.origin_position(), chunk_mesh));
+            }
         });
     }
 
     pub fn ready_chunk_meshes(&self) -> Vec<(BlockPosition, Mesh)> {
         let mut ready_chunk_meshes = Vec::new();
 
-        while let chunk_mesh_result = self.ready_chunk_meshes_rx.try_recv() {
+        loop {
+            let chunk_mesh_result = self.ready_chunk_meshes_rx.try_recv();
             match chunk_mesh_result {
                 Ok(chunk_mesh) => ready_chunk_meshes.push(chunk_mesh),
                 Err(std::sync::mpsc::TryRecvError::Empty) => break,

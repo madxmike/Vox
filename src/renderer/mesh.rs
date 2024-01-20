@@ -1,5 +1,3 @@
-
-
 use super::vulkan::default_lit_pipeline::MeshVertex;
 pub enum WindingDirection {
     Clockwise,
@@ -57,5 +55,9 @@ impl Mesh {
 
     pub fn indicies(&self) -> &[u32] {
         self.indicies.as_ref()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.vertices.is_empty()
     }
 }
