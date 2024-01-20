@@ -1,6 +1,5 @@
 use std::sync::Arc;
 
-
 use vulkano::{
     buffer::{
         allocator::{SubbufferAllocator, SubbufferAllocatorCreateInfo},
@@ -11,8 +10,7 @@ use vulkano::{
         PrimaryAutoCommandBuffer, RenderPassBeginInfo, SubpassBeginInfo,
     },
     descriptor_set::{
-        allocator::{StandardDescriptorSetAllocator},
-        PersistentDescriptorSet, WriteDescriptorSet,
+        allocator::StandardDescriptorSetAllocator, PersistentDescriptorSet, WriteDescriptorSet,
     },
     device::{Device, Queue},
     format::{self, Format},

@@ -3,7 +3,11 @@ use std::sync::Arc;
 use sdl2::video::Window;
 use vulkano::{
     buffer::{Buffer, BufferContents, BufferCreateInfo, BufferUsage, Subbuffer},
-    command_buffer::{allocator::StandardCommandBufferAllocator, CommandBufferExecFuture},
+    command_buffer::{
+        allocator::StandardCommandBufferAllocator, AutoCommandBufferBuilder,
+        CommandBufferExecFuture, CommandBufferUsage, PrimaryAutoCommandBuffer,
+        PrimaryCommandBufferAbstract,
+    },
     descriptor_set::allocator::StandardDescriptorSetAllocator,
     device::{
         physical::{PhysicalDevice, PhysicalDeviceType},
@@ -21,8 +25,10 @@ use vulkano::{
         future::{FenceSignalFuture, JoinFuture},
         GpuFuture,
     },
-    Handle, Validated, VulkanLibrary, VulkanObject,
+    Handle, Validated, ValidationError, VulkanLibrary, VulkanObject,
 };
+
+use crate::renderer::staged_buffer::StagedBuffer;
 
 use super::{
     default_lit_pipeline::{DefaultLitPipeline, MeshVertex},
@@ -303,7 +309,7 @@ impl VulkanRenderer {
                 ..Default::default()
             },
             AllocationCreateInfo {
-                memory_type_filter: MemoryTypeFilter::PREFER_DEVICE
+                memory_type_filter: MemoryTypeFilter::PREFER_HOST
                     | MemoryTypeFilter::HOST_SEQUENTIAL_WRITE,
                 ..Default::default()
             },
@@ -327,7 +333,7 @@ impl VulkanRenderer {
                 ..Default::default()
             },
             AllocationCreateInfo {
-                memory_type_filter: MemoryTypeFilter::PREFER_DEVICE
+                memory_type_filter: MemoryTypeFilter::PREFER_HOST
                     | MemoryTypeFilter::HOST_SEQUENTIAL_WRITE,
                 ..Default::default()
             },
@@ -416,5 +422,69 @@ impl VulkanRenderer {
 
         self.fences[image_idx as usize] = Some(Arc::new(future));
         self.last_fence_index = image_idx as usize;
+    }
+
+    pub fn immediate_submit<OP>(&self, f: OP)
+    where
+        OP: Fn(
+            &mut AutoCommandBufferBuilder<PrimaryAutoCommandBuffer>,
+        ) -> Result<
+            &mut AutoCommandBufferBuilder<PrimaryAutoCommandBuffer>,
+            Box<ValidationError>,
+        >,
+    {
+        let mut builder = AutoCommandBufferBuilder::primary(
+            &self.command_buffer_allocator,
+            self.queue.queue_family_index(),
+            CommandBufferUsage::OneTimeSubmit,
+        )
+        .unwrap();
+
+        f(&mut builder).unwrap();
+
+        let command_buffer = builder.build().unwrap();
+
+        command_buffer
+            .execute(self.queue.clone())
+            .unwrap()
+            .then_signal_fence_and_flush();
+    }
+
+    pub fn create_staged_vertex_buffer<T>(&self, size: u64) -> StagedBuffer<T>
+    where
+        T: BufferContents,
+    {
+        StagedBuffer::new_slice(
+            self.memory_allocator.clone(),
+            BufferCreateInfo {
+                usage: BufferUsage::VERTEX_BUFFER | BufferUsage::TRANSFER_SRC,
+                ..Default::default()
+            },
+            BufferCreateInfo {
+                usage: BufferUsage::VERTEX_BUFFER | BufferUsage::TRANSFER_DST,
+                ..Default::default()
+            },
+            size,
+        )
+        .unwrap()
+    }
+
+    pub fn create_staged_index_buffer<T>(&self, size: u64) -> StagedBuffer<T>
+    where
+        T: BufferContents,
+    {
+        StagedBuffer::new_slice(
+            self.memory_allocator.clone(),
+            BufferCreateInfo {
+                usage: BufferUsage::INDEX_BUFFER | BufferUsage::TRANSFER_SRC,
+                ..Default::default()
+            },
+            BufferCreateInfo {
+                usage: BufferUsage::INDEX_BUFFER | BufferUsage::TRANSFER_DST,
+                ..Default::default()
+            },
+            size,
+        )
+        .unwrap()
     }
 }

@@ -40,7 +40,7 @@ fn main() {
         transform: Transform::new(glam::vec3(0.0, 0.0, 3.0), glam::vec3(0.0, 0.0, 0.0)),
         local_transform: Transform::default(),
         near_clipping_plane: 0.01,
-        far_clipping_plane: 1000.0,
+        far_clipping_plane: 3000.0,
         field_of_view: 90.0,
         aspect_ratio,
 
@@ -50,9 +50,9 @@ fn main() {
     let mut world = world_generation_system::generate_world(
         10,
         WorldGenerationSettings {
-            max_width: 10,
+            max_width: 18,
             max_height: 10,
-            max_length: 10,
+            max_length: 18,
         },
     );
 
@@ -146,7 +146,7 @@ fn main() {
         last_render_tick_time = current_render_tick_time;
         current_render_tick_time = timer_subsystem.performance_counter();
 
-        world_render_system.render_world(&mut renderer, &world, &camera);
+        world_render_system.render_world(&mut renderer, &camera);
 
         delta_time = ((current_render_tick_time - last_render_tick_time) as f32)
             / timer_subsystem.performance_frequency() as f32;
