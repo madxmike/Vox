@@ -3,8 +3,8 @@ use std::sync::mpsc::{channel, Receiver, Sender, SyncSender};
 use crate::world::{
     block::Block,
     block_position::BlockPosition,
-    chunk::{Chunk, CHUNK_BLOCK_DEPTH, CHUNK_BLOCK_HEIGHT, CHUNK_BLOCK_WIDTH},
-    direction::Direction,
+    chunk::{self, Chunk, CHUNK_BLOCK_DEPTH, CHUNK_BLOCK_HEIGHT, CHUNK_BLOCK_WIDTH},
+    direction::{self, Direction},
 };
 
 use super::mesh::{Mesh, WindingDirection};
@@ -23,11 +23,10 @@ impl ChunkMesher {
         }
     }
 
-    pub fn begin_meshing_chunk(&self, chunk: Chunk) {
+    pub fn begin_meshing_chunk(&self, chunk: Chunk, neighbor_chunks: Vec<Option<Chunk>>) {
         let tx = self.ready_chunk_meshes_tx.clone();
         tokio_rayon::spawn(move || {
-            let chunk_mesh = ChunkMesher::mesh_chunk(chunk);
-
+            let chunk_mesh = ChunkMesher::mesh_chunk(&chunk, &neighbor_chunks);
             if !chunk_mesh.is_empty() {
                 tx.send((chunk.origin_position(), chunk_mesh));
             }
@@ -51,7 +50,7 @@ impl ChunkMesher {
         ready_chunk_meshes
     }
 
-    fn mesh_chunk(chunk: Chunk) -> Mesh {
+    fn mesh_chunk(chunk: &Chunk, neighbor_chunks: &[Option<Chunk>]) -> Mesh {
         let mut chunk_mesh = Mesh::default();
 
         let origin_position = chunk.origin_position();
@@ -60,7 +59,14 @@ impl ChunkMesher {
             for y in 0..CHUNK_BLOCK_HEIGHT {
                 for z in 0..CHUNK_BLOCK_DEPTH {
                     let block_position = origin_position.offset(x as i32, y as i32, z as i32);
-                    ChunkMesher::mesh_block(&chunk, &mut chunk_mesh, block_position);
+                    if let Some(block) = chunk.get_block_at_position(block_position).ok() {
+                        ChunkMesher::mesh_block(
+                            chunk,
+                            neighbor_chunks,
+                            &mut chunk_mesh,
+                            block_position,
+                        );
+                    }
                 }
             }
         }
@@ -68,11 +74,13 @@ impl ChunkMesher {
         chunk_mesh
     }
 
-    fn mesh_block(chunk: &Chunk, mesh: &mut Mesh, block_position: BlockPosition) {
-        if let None = chunk.get_block_at_position(block_position).ok() {
-            return;
-        }
-        let neighbors = ChunkMesher::get_neighbors(chunk, block_position);
+    fn mesh_block(
+        chunk: &Chunk,
+        neighbor_chunks: &[Option<Chunk>],
+        mesh: &mut Mesh,
+        block_position: BlockPosition,
+    ) {
+        let neighbors = ChunkMesher::get_neighbors(chunk, neighbor_chunks, block_position);
         let block_position_vec3 = block_position.to_vec3();
 
         for (direction, neighbor) in neighbors.iter() {
@@ -153,51 +161,49 @@ impl ChunkMesher {
     /// This will always be in [Direction] order.
     pub fn get_neighbors(
         chunk: &Chunk,
+        neighbor_chunks: &[Option<Chunk>],
         position: BlockPosition,
     ) -> Vec<(Direction, Option<Block>)> {
-        vec![
-            (
-                Direction::North,
-                chunk
-                    .get_block_at_position(position.offset(0, 0, 1))
-                    .ok()
-                    .flatten(),
-            ),
-            (
-                Direction::South,
-                chunk
-                    .get_block_at_position(position.offset(0, 0, -1))
-                    .ok()
-                    .flatten(),
-            ),
-            (
-                Direction::East,
-                chunk
-                    .get_block_at_position(position.offset(-1, 0, 0))
-                    .ok()
-                    .flatten(),
-            ),
-            (
-                Direction::West,
-                chunk
-                    .get_block_at_position(position.offset(1, 0, 0))
-                    .ok()
-                    .flatten(),
-            ),
-            (
-                Direction::Up,
-                chunk
-                    .get_block_at_position(position.offset(0, 1, 0))
-                    .ok()
-                    .flatten(),
-            ),
-            (
-                Direction::Down,
-                chunk
-                    .get_block_at_position(position.offset(0, -1, 0))
-                    .ok()
-                    .flatten(),
-            ),
-        ]
+        let offsets: Vec<(Direction, (i32, i32, i32))> = vec![
+            (Direction::North, (0, 0, 1)),
+            (Direction::South, (0, 0, -1)),
+            (Direction::East, (-1, 0, 0)),
+            (Direction::West, (1, 0, 0)),
+            (Direction::Up, (0, 1, 0)),
+            (Direction::Down, (0, -1, 0)),
+        ];
+
+        let mut neighbors = vec![];
+        'outer: for (direction, offset) in offsets {
+            match chunk.get_block_at_position(position.offset(offset.0, offset.1, offset.2)) {
+                Ok(block) => {
+                    neighbors.push((direction, block));
+                    continue;
+                }
+                Err(_) => {}
+            }
+
+            for neighbor_chunk in neighbor_chunks {
+                if let None = neighbor_chunk {
+                    continue;
+                }
+
+                match neighbor_chunk
+                    .as_ref()
+                    .unwrap()
+                    .get_block_at_position(position.offset(offset.0, offset.1, offset.2))
+                {
+                    Ok(block) => {
+                        neighbors.push((direction, block));
+                        continue 'outer;
+                    }
+                    Err(_) => continue,
+                }
+            }
+
+            neighbors.push((direction, None))
+        }
+
+        neighbors
     }
 }

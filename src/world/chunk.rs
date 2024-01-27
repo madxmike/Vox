@@ -1,12 +1,19 @@
 use tokio::sync::RwLock;
 
-use super::{block::Block, block_position::BlockPosition};
+use crate::world::direction;
+
+use super::{
+    block::Block,
+    block_position::{self, BlockPosition},
+    block_position_range::{BlockPositionRange, RangeType},
+    direction::Direction,
+};
 
 pub const CHUNK_BLOCK_WIDTH: usize = 16;
 pub const CHUNK_BLOCK_HEIGHT: usize = 16;
 pub const CHUNK_BLOCK_DEPTH: usize = 16;
 const CHUNK_SIZE: usize = CHUNK_BLOCK_WIDTH * CHUNK_BLOCK_HEIGHT * CHUNK_BLOCK_DEPTH;
-
+#[derive(Debug)]
 pub enum ChunkAccessorError {
     PositionNotWithinChunk(BlockPosition),
 }
@@ -85,5 +92,62 @@ impl Chunk {
 
     pub fn is_world_position_within(&self, world_position: BlockPosition) -> bool {
         self.origin_position == world_position.to_chunk_origin()
+    }
+
+    pub fn get_face_blocks(&self, face_direction: Direction) -> Vec<Option<Block>> {
+        let start = match face_direction {
+            Direction::North => self
+                .origin_position
+                .offset(0, 0, CHUNK_BLOCK_DEPTH as i32 - 1),
+            Direction::South => self.origin_position.offset(0, 0, 0),
+            Direction::East => self.origin_position.offset(0, 0, 0),
+            Direction::West => self
+                .origin_position
+                .offset(CHUNK_BLOCK_WIDTH as i32 - 1, 0, 0),
+            Direction::Up => self
+                .origin_position
+                .offset(0, CHUNK_BLOCK_HEIGHT as i32 - 1, 0),
+            Direction::Down => self.origin_position.offset(0, 0, 0),
+        };
+
+        let end = match face_direction {
+            Direction::North => self.origin_position.offset(
+                CHUNK_BLOCK_WIDTH as i32 - 1,
+                CHUNK_BLOCK_HEIGHT as i32 - 1,
+                CHUNK_BLOCK_DEPTH as i32 - 1,
+            ),
+            Direction::South => self.origin_position.offset(
+                CHUNK_BLOCK_WIDTH as i32 - 1,
+                CHUNK_BLOCK_HEIGHT as i32 - 1,
+                0,
+            ),
+            Direction::East => self.origin_position.offset(
+                0,
+                CHUNK_BLOCK_HEIGHT as i32 - 1,
+                CHUNK_BLOCK_DEPTH as i32 - 1,
+            ),
+            Direction::West => self.origin_position.offset(
+                CHUNK_BLOCK_WIDTH as i32 - 1,
+                CHUNK_BLOCK_HEIGHT as i32 - 1,
+                CHUNK_BLOCK_DEPTH as i32 - 1,
+            ),
+            Direction::Up => self.origin_position.offset(
+                CHUNK_BLOCK_WIDTH as i32 - 1,
+                CHUNK_BLOCK_HEIGHT as i32 - 1,
+                CHUNK_BLOCK_DEPTH as i32 - 1,
+            ),
+            Direction::Down => self.origin_position.offset(
+                CHUNK_BLOCK_WIDTH as i32 - 1,
+                0,
+                CHUNK_BLOCK_DEPTH as i32 - 1,
+            ),
+        };
+
+        let mut face_blocks = Vec::new();
+        for block_position in BlockPositionRange::new(start, end, RangeType::Cubic).into_iter() {
+            face_blocks.push(self.get_block_at_position(block_position).unwrap())
+        }
+
+        face_blocks
     }
 }

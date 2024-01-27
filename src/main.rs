@@ -50,9 +50,9 @@ fn main() {
     let mut world = world_generation_system::generate_world(
         10,
         WorldGenerationSettings {
-            max_width: 18,
-            max_height: 10,
-            max_length: 18,
+            max_width: 16,
+            max_height: 16,
+            max_length: 16,
         },
     );
 

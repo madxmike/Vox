@@ -40,14 +40,40 @@ impl WorldRenderSystem {
             chunk_mesher: ChunkMesher::new(),
             opaque_chunk_meshes: Default::default(),
             opaque_chunk_vertex_buffer: renderer
-                .create_staged_vertex_buffer::<MeshVertex>(1024 * 1024 * 160),
-            opaque_chunk_index_buffer: renderer
-                .create_staged_index_buffer::<u32>(1024 * 1024 * 160),
+                .create_staged_vertex_buffer::<MeshVertex>(32 << 20),
+            opaque_chunk_index_buffer: renderer.create_staged_index_buffer::<u32>(48 << 20),
         }
     }
     pub fn build_chunk_meshes(&mut self, world: &World) {
-        for (_, chunk) in world.chunks.iter() {
-            self.chunk_mesher.begin_meshing_chunk(chunk.to_owned())
+        for (chunk_origin_position, chunk) in world.chunks.iter() {
+            let mut neighbor_chunks = vec![
+                world
+                    .chunks
+                    .get(&chunk_origin_position.offset(0, 0, CHUNK_BLOCK_DEPTH as i32))
+                    .copied(),
+                world
+                    .chunks
+                    .get(&chunk_origin_position.offset(0, 0, -(CHUNK_BLOCK_DEPTH as i32)))
+                    .copied(),
+                world
+                    .chunks
+                    .get(&chunk_origin_position.offset(CHUNK_BLOCK_WIDTH as i32, 0, 0))
+                    .copied(),
+                world
+                    .chunks
+                    .get(&chunk_origin_position.offset(-(CHUNK_BLOCK_WIDTH as i32), 0, 0))
+                    .copied(),
+                world
+                    .chunks
+                    .get(&chunk_origin_position.offset(0, CHUNK_BLOCK_HEIGHT as i32, 0))
+                    .copied(),
+                world
+                    .chunks
+                    .get(&chunk_origin_position.offset(0, -(CHUNK_BLOCK_HEIGHT as i32), 0))
+                    .copied(),
+            ];
+            self.chunk_mesher
+                .begin_meshing_chunk(chunk.to_owned(), neighbor_chunks)
         }
     }
 
@@ -87,7 +113,7 @@ impl WorldRenderSystem {
                 self.opaque_chunk_meshes
                     .insert(chunk_origin_pos, chunk_mesh);
             }
-            // TODO (Michael): We have to uncouple the buffers on the gpu and cpu, otherwise this can only be written too once
+            // TODO (Michael): Instead of having meshes and then copying to a vertex buffer, we should just create the mesh directly in the vertex buffer memory
             self.write_meshes();
             self.opaque_chunk_vertex_buffer.upload_to_device(renderer);
             self.opaque_chunk_index_buffer.upload_to_device(renderer);

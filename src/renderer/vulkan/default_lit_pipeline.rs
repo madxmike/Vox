@@ -117,7 +117,7 @@ impl DefaultLitPipeline {
                     ..Default::default()
                 }),
                 rasterization_state: Some(RasterizationState {
-                    polygon_mode: PolygonMode::Fill,
+                    polygon_mode: PolygonMode::Line,
                     cull_mode: CullMode::Back,
                     front_face: FrontFace::Clockwise,
                     ..Default::default()
