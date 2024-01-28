@@ -2,7 +2,7 @@ mod camera;
 mod renderer;
 mod transform;
 mod world;
-use std::{f32::consts::PI, ops::Deref};
+use std::{f32::consts::PI};
 
 use camera::Camera;
 use renderer::vulkan::vulkan_renderer::VulkanRenderer;
@@ -12,9 +12,6 @@ use sdl2::keyboard::Keycode;
 
 use transform::Transform;
 use world::{
-    block::Block,
-    block_position::BlockPosition,
-    chunk,
     world_generation_system::{self, WorldGenerationSettings},
 };
 
@@ -47,7 +44,7 @@ fn main() {
         ..Camera::default()
     };
 
-    let mut world = world_generation_system::generate_world(
+    let world = world_generation_system::generate_world(
         10,
         WorldGenerationSettings {
             max_width: 16,

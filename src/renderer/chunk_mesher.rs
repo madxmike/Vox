@@ -1,10 +1,10 @@
-use std::sync::mpsc::{channel, Receiver, Sender, SyncSender};
+use std::sync::mpsc::{channel, Receiver, Sender};
 
 use crate::world::{
     block::Block,
     block_position::BlockPosition,
-    chunk::{self, Chunk, CHUNK_BLOCK_DEPTH, CHUNK_BLOCK_HEIGHT, CHUNK_BLOCK_WIDTH},
-    direction::{self, Direction},
+    chunk::{Chunk, CHUNK_BLOCK_DEPTH, CHUNK_BLOCK_HEIGHT, CHUNK_BLOCK_WIDTH},
+    direction::{Direction},
 };
 
 use super::mesh::{Mesh, WindingDirection};
@@ -59,7 +59,7 @@ impl ChunkMesher {
             for y in 0..CHUNK_BLOCK_HEIGHT {
                 for z in 0..CHUNK_BLOCK_DEPTH {
                     let block_position = origin_position.offset(x as i32, y as i32, z as i32);
-                    if let Some(block) = chunk.get_block_at_position(block_position).ok() {
+                    if let Some(_block) = chunk.get_block_at_position(block_position).ok() {
                         ChunkMesher::mesh_block(
                             chunk,
                             neighbor_chunks,

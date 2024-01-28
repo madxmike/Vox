@@ -1,28 +1,28 @@
-use std::ops::Deref;
-use std::sync::mpsc::{channel, Receiver};
-use std::{collections::HashMap, time::Instant};
+
+
+use std::{collections::HashMap};
 
 use glam::vec3;
 use rayon::iter::{
-    IntoParallelIterator, IntoParallelRefIterator, ParallelBridge, ParallelIterator,
+    ParallelIterator,
 };
-use tokio::sync::RwLock;
-use vulkano::buffer::Subbuffer;
-use vulkano::command_buffer::CopyBufferInfo;
+
+
+
 use vulkano::sync::HostAccessError;
 
-use crate::world::block::Block;
-use crate::world::chunk::{Chunk, CHUNK_BLOCK_DEPTH, CHUNK_BLOCK_HEIGHT, CHUNK_BLOCK_WIDTH};
-use crate::world::{block_position, chunk};
+
+use crate::world::chunk::{CHUNK_BLOCK_DEPTH, CHUNK_BLOCK_HEIGHT, CHUNK_BLOCK_WIDTH};
+
 use crate::{
-    camera::Camera, world::block_position::BlockPosition, world::direction::Direction,
+    camera::Camera, world::block_position::BlockPosition,
     world::world::World,
 };
 
 use super::chunk_mesher::ChunkMesher;
 use super::staged_buffer::StagedBuffer;
 use super::{
-    mesh::{Mesh, WindingDirection},
+    mesh::{Mesh},
     vulkan::{default_lit_pipeline::MeshVertex, mvp::MVP, vulkan_renderer::VulkanRenderer},
 };
 
@@ -46,7 +46,7 @@ impl WorldRenderSystem {
     }
     pub fn build_chunk_meshes(&mut self, world: &World) {
         for (chunk_origin_position, chunk) in world.chunks.iter() {
-            let mut neighbor_chunks = vec![
+            let neighbor_chunks = vec![
                 world
                     .chunks
                     .get(&chunk_origin_position.offset(0, 0, CHUNK_BLOCK_DEPTH as i32))

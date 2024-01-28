@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
-use tokio::sync::RwLock;
 
-use super::{block::Block, block_position::BlockPosition, chunk::Chunk, direction::Direction};
+
+use super::{block::Block, block_position::BlockPosition, chunk::Chunk};
 
 pub struct World {
     // TODO (Michael): Later we want to move this to a chunk pool when we do loading / unloading
